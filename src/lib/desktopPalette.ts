@@ -42,4 +42,48 @@ export const DESKTOP_PALETTES: Record<WidgetTheme, DesktopPalettes> = {
     stale: { "--cool": "#273748", "--glow": "#455569", "--warm": "#2B3340", "--progress-start": "#71849A", "--progress-end": "#A4B3C1" },
     signed_out: { "--cool": "#2D3864", "--glow": "#31445A", "--warm": "#5B3B55", "--progress-start": "#5864DE", "--progress-end": "#7D88F2", "--linear-warm": "#353650", "--linear-end": "#1D2534", "--aurora-opacity": "1" },
   },
+  // Sakura Night stays independent from the generic dark palette. The
+  // background image supplies blossom detail while these state records keep
+  // progress and error states readable and data-driven.
+  sakura: {
+    healthy: { "--cool": "#3B2A38", "--glow": "#6B4A5A", "--warm": "#4B3441", "--progress-start": "#C9799A", "--progress-end": "#E7A9BD", "--glow-fade": "58%", "--warm-position": "89% 84%", "--warm-fade": "45%", "--linear-warm": "#3C2936", "--linear-end": "#241821", "--gradient-angle": "145deg", "--aurora-opacity": ".62" },
+    caution: { "--cool": "#40303F", "--glow": "#715A50", "--warm": "#4A3440", "--progress-start": "#C88A9F", "--progress-end": "#E6B7C4", "--glow-fade": "60%", "--warm-position": "88% 84%", "--warm-fade": "46%", "--linear-warm": "#3E2B37", "--linear-end": "#271B24", "--gradient-angle": "145deg", "--aurora-opacity": ".64" },
+    critical: { "--cool": "#472E3A", "--glow": "#80525A", "--warm": "#4B2936", "--progress-start": "#D77F96", "--progress-end": "#EEB0BC", "--glow-fade": "62%", "--warm-position": "88% 84%", "--warm-fade": "48%", "--linear-warm": "#402532", "--linear-end": "#281921", "--gradient-angle": "145deg", "--aurora-opacity": ".66" },
+    unavailable: { "--cool": "#3A2E3B", "--glow": "#594451", "--warm": "#3C2D38", "--progress-start": "#B47F98", "--progress-end": "#D6A8BA", "--linear-warm": "#352631", "--linear-end": "#241922", "--aurora-opacity": ".6" },
+    stale: { "--cool": "#38323B", "--glow": "#5A5059", "--warm": "#3D343D", "--progress-start": "#9D8E9D", "--progress-end": "#C5B6C1", "--linear-warm": "#373039", "--linear-end": "#29222A", "--aurora-opacity": ".56" },
+    signed_out: { "--cool": "#40364D", "--glow": "#625064", "--warm": "#493746", "--progress-start": "#A996D0", "--progress-end": "#D0B6DE", "--linear-warm": "#3D3047", "--linear-end": "#28202F", "--aurora-opacity": ".6" },
+  },
+  // Warm Daily Orange keeps the supplied café scene visible under a cream
+  // glass tint. The state records only drive readable status/progress tokens;
+  // the photo asset itself is shared by the expanded card and compact orb.
+  warm: {
+    healthy: { "--cool": "#F2D4B4", "--glow": "#FFE8C9", "--warm": "#F2A46B", "--progress-start": "#FF6039", "--progress-end": "#FFB25D", "--glow-fade": "58%", "--warm-position": "88% 86%", "--warm-fade": "50%", "--linear-warm": "#F2BF8D", "--linear-end": "#F8E4CD", "--gradient-angle": "145deg", "--aurora-opacity": ".3" },
+    caution: { "--cool": "#F0D0A8", "--glow": "#FFE0A3", "--warm": "#ED9250", "--progress-start": "#F37A2F", "--progress-end": "#FFC46B", "--glow-fade": "60%", "--warm-position": "88% 86%", "--warm-fade": "52%", "--linear-warm": "#F1B47B", "--linear-end": "#F6DEC1", "--gradient-angle": "145deg", "--aurora-opacity": ".34" },
+    critical: { "--cool": "#E8C2A2", "--glow": "#FFD0A6", "--warm": "#D96D43", "--progress-start": "#EF5130", "--progress-end": "#FFB765", "--glow-fade": "62%", "--warm-position": "88% 86%", "--warm-fade": "54%", "--linear-warm": "#EBAA77", "--linear-end": "#F4D9BC", "--gradient-angle": "145deg", "--aurora-opacity": ".36" },
+    unavailable: { "--cool": "#D6BFAE", "--glow": "#F5D7B7", "--warm": "#C87F64", "--progress-start": "#C56A4B", "--progress-end": "#E5A785", "--linear-warm": "#DAB9A3", "--linear-end": "#F0DFCE", "--aurora-opacity": ".3" },
+    stale: { "--cool": "#D7C7BA", "--glow": "#EBD9C8", "--warm": "#BBA092", "--progress-start": "#A98777", "--progress-end": "#D1B4A2", "--linear-warm": "#D4C1B5", "--linear-end": "#EEE1D5", "--aurora-opacity": ".26" },
+    signed_out: { "--cool": "#D9C1B7", "--glow": "#EED1C6", "--warm": "#B97561", "--progress-start": "#B66A58", "--progress-end": "#D39A85", "--linear-warm": "#D8B9A9", "--linear-end": "#F0DED4", "--aurora-opacity": ".3" },
+  },
+  // City Dusk Purple keeps the skyline/cat photograph behind a dark glass
+  // layer. Lavender progress tokens distinguish quota state without losing
+  // the quiet indigo night mood of the reference.
+  city: {
+    healthy: { "--cool": "#32276E", "--glow": "#68429A", "--warm": "#151A4C", "--progress-start": "#C06DEB", "--progress-end": "#F0B0EF", "--glow-fade": "58%", "--warm-position": "89% 86%", "--warm-fade": "48%", "--linear-warm": "#1C194F", "--linear-end": "#10162F", "--gradient-angle": "145deg", "--aurora-opacity": ".58" },
+    caution: { "--cool": "#392B72", "--glow": "#76508D", "--warm": "#1A194A", "--progress-start": "#9A7AE8", "--progress-end": "#E8B4E5", "--glow-fade": "60%", "--warm-position": "89% 86%", "--warm-fade": "50%", "--linear-warm": "#211A4B", "--linear-end": "#121632", "--gradient-angle": "145deg", "--aurora-opacity": ".6" },
+    critical: { "--cool": "#49286E", "--glow": "#8B4C8B", "--warm": "#21163F", "--progress-start": "#E47EBB", "--progress-end": "#F3B9E4", "--glow-fade": "62%", "--warm-position": "89% 86%", "--warm-fade": "52%", "--linear-warm": "#29183F", "--linear-end": "#17152D", "--gradient-angle": "145deg", "--aurora-opacity": ".64" },
+    unavailable: { "--cool": "#2A2B60", "--glow": "#5B417D", "--warm": "#1A1B46", "--progress-start": "#7F7EC5", "--progress-end": "#B7A5DF", "--linear-warm": "#202047", "--linear-end": "#13172F", "--aurora-opacity": ".54" },
+    stale: { "--cool": "#283653", "--glow": "#4D547D", "--warm": "#1A2441", "--progress-start": "#7185B8", "--progress-end": "#AAB9D7", "--linear-warm": "#202C48", "--linear-end": "#172039", "--aurora-opacity": ".48" },
+    signed_out: { "--cool": "#3A2B65", "--glow": "#624B80", "--warm": "#241A4A", "--progress-start": "#A78DDF", "--progress-end": "#D3B8F0", "--linear-warm": "#2B204F", "--linear-end": "#19182F", "--aurora-opacity": ".56" },
+  },
+  // Home Night uses the indoor reference as its visual anchor. The warmer
+  // plum status records keep quota changes legible without flattening the
+  // lamp, window, cat, and mug into a generic dark-mode surface.
+  home: {
+    healthy: { "--cool": "#302036", "--glow": "#6A3D50", "--warm": "#24182B", "--progress-start": "#D66C9A", "--progress-end": "#F4A9C7", "--glow-fade": "58%", "--warm-position": "86% 84%", "--warm-fade": "48%", "--linear-warm": "#2A182B", "--linear-end": "#160F1A", "--gradient-angle": "145deg", "--aurora-opacity": ".56" },
+    caution: { "--cool": "#39233B", "--glow": "#7A4753", "--warm": "#29182C", "--progress-start": "#C47C9F", "--progress-end": "#EEB5C9", "--glow-fade": "60%", "--warm-position": "86% 84%", "--warm-fade": "50%", "--linear-warm": "#301A2D", "--linear-end": "#19101D", "--gradient-angle": "145deg", "--aurora-opacity": ".6" },
+    critical: { "--cool": "#452437", "--glow": "#8A4A58", "--warm": "#2B1627", "--progress-start": "#E26788", "--progress-end": "#F3A3BB", "--glow-fade": "62%", "--warm-position": "86% 84%", "--warm-fade": "52%", "--linear-warm": "#35182B", "--linear-end": "#1D101B", "--gradient-angle": "145deg", "--aurora-opacity": ".64" },
+    unavailable: { "--cool": "#35283A", "--glow": "#634553", "--warm": "#261B2D", "--progress-start": "#A47497", "--progress-end": "#CBA8BA", "--linear-warm": "#2C2030", "--linear-end": "#19141E", "--aurora-opacity": ".5" },
+    stale: { "--cool": "#33303A", "--glow": "#53505E", "--warm": "#252631", "--progress-start": "#85839B", "--progress-end": "#B7B2C0", "--linear-warm": "#2C2C38", "--linear-end": "#1B1D29", "--aurora-opacity": ".44" },
+    signed_out: { "--cool": "#3D2B4B", "--glow": "#624764", "--warm": "#281A3A", "--progress-start": "#B393D7", "--progress-end": "#D6B8E6", "--linear-warm": "#322044", "--linear-end": "#1B1328", "--aurora-opacity": ".54" },
+  },
 };

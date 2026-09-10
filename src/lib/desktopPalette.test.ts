@@ -38,4 +38,40 @@ describe("desktop palettes", () => {
       "--progress-end": "#E6A38D",
     });
   });
+
+  it("keeps Sakura Night independent and pink-led", () => {
+    expect(DESKTOP_PALETTES.sakura.healthy).toMatchObject({
+      "--cool": "#3B2A38",
+      "--progress-start": "#C9799A",
+      "--progress-end": "#E7A9BD",
+    });
+    expect(DESKTOP_PALETTES.sakura.healthy).not.toEqual(DESKTOP_PALETTES.dark.healthy);
+  });
+
+  it("keeps Warm Daily Orange independent and orange-led", () => {
+    expect(DESKTOP_PALETTES.warm.healthy).toMatchObject({
+      "--cool": "#F2D4B4",
+      "--progress-start": "#FF6039",
+      "--progress-end": "#FFB25D",
+    });
+    expect(DESKTOP_PALETTES.warm.healthy).not.toEqual(DESKTOP_PALETTES.light.healthy);
+  });
+
+  it("keeps City Dusk Purple independent and lavender-led", () => {
+    expect(DESKTOP_PALETTES.city.healthy).toMatchObject({
+      "--cool": "#32276E",
+      "--progress-start": "#C06DEB",
+      "--progress-end": "#F0B0EF",
+    });
+    expect(DESKTOP_PALETTES.city.healthy).not.toEqual(DESKTOP_PALETTES.dark.healthy);
+  });
+
+  it("keeps Home Night independent and plum-led", () => {
+    expect(DESKTOP_PALETTES.home.healthy).toMatchObject({
+      "--cool": "#302036",
+      "--progress-start": "#D66C9A",
+      "--progress-end": "#F4A9C7",
+    });
+    expect(DESKTOP_PALETTES.home.healthy).not.toEqual(DESKTOP_PALETTES.dark.healthy);
+  });
 });

@@ -40,4 +40,18 @@ describe("widget transitions", () => {
       "end:collapse_widget",
     ]);
   });
+
+  it("passes the click-through state to the desktop command", async () => {
+    const { setClickThrough } = await import("./bridge");
+    await setClickThrough(true);
+    expect(api.invoke).toHaveBeenCalledWith("set_widget_locked", { locked: true });
+  });
+
+  it("loads and clears quota history through the desktop commands", async () => {
+    const { clearQuotaHistory, getQuotaHistory } = await import("./bridge");
+    await getQuotaHistory();
+    await clearQuotaHistory();
+    expect(api.invoke).toHaveBeenNthCalledWith(1, "get_quota_history");
+    expect(api.invoke).toHaveBeenNthCalledWith(2, "clear_quota_history");
+  });
 });

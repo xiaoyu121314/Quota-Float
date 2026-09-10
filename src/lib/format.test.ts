@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampPercent, formatResetDate, formatResetTime, needsFastRefresh, quotaTier } from "./format";
+import { clampPercent, formatResetDate, formatResetDateTime, formatResetTime, needsFastRefresh, quotaTier } from "./format";
 
 describe("quota formatting", () => {
   it("clamps untrusted percentages", () => {
@@ -43,5 +43,10 @@ describe("quota formatting", () => {
     expect(formatResetDate(null)).toBe("日期未知");
     expect(formatResetDate(null, "zh-CN")).toBe("日期未知");
     expect(formatResetDate(null, "en")).toBe("Date unknown");
+  });
+
+  it("formats the weekly reset using its own date and time", () => {
+    expect(formatResetDateTime("2026-07-10T13:25:00+08:00")).toMatch(/^7\/10 \d{2}:25$/);
+    expect(formatResetDateTime(null)).toBe("日期未知");
   });
 });

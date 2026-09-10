@@ -6,9 +6,18 @@
 
 ## Theme and state selection
 
-- The desktop preference is `appearance`: `system`, `light`, or `dark`.
+- The desktop preference is `appearance`: `system`, `light`, `dark`, `sakura`, `warm`, `city`, or `home`.
 - `system` resolves from `prefers-color-scheme` in the frontend.
 - Each resolved theme has independent records for `healthy`, `caution`, `critical`, `unavailable`, `stale`, and `signed_out`.
+- `warm` is the Warm Daily Orange theme: its generated café background is
+  shared by the expanded card and compact orb, while its state records keep
+  progress and failure colors readable over the image.
+- `city` is the City Dusk Purple theme: its generated city-and-cat background
+  is shared by the expanded card and compact orb, while its state records keep
+  the lavender quota indicators readable over the night scene.
+- `home` is the Home Night theme: its generated indoor window, cat, and mug
+  background is shared by the expanded card and compact orb, while its state
+  records keep the rose/plum quota indicators readable in the dark room.
 - A status palette takes priority over a percentage-derived palette.
 
 Do not copy light values into dark records (or the reverse) as a convenience. Both themes are intentionally independent so an edit in one cannot change the other.

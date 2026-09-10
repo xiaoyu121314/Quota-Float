@@ -1,6 +1,6 @@
-import type { ProviderSnapshot, SupporterStatus, WidgetPreferences, WidgetSkin } from "../types";
+import type { ProviderSnapshot, QuotaHistoryPoint, WidgetPreferences, WidgetTheme } from "../types";
 
-const defaultPreferences: WidgetPreferences = { locked: false, alwaysOnTop: true, stayExpanded: false, pinnedProvider: null, autoRotateSeconds: 12, language: "zh-CN", appearance: "light", license: null, licenses: [], unlockedSkin: null, unlockedSkins: [], selectedSkin: "default" };
+const defaultPreferences: WidgetPreferences = { locked: false, alwaysOnTop: true, stayExpanded: false, pinnedProvider: null, autoRotateSeconds: 12, language: "zh-CN", appearance: "light", opacity: 100 };
 
 const mockSnapshot: ProviderSnapshot = {
   provider: "codex",
@@ -14,6 +14,20 @@ const mockSnapshot: ProviderSnapshot = {
   status: "ok",
   message: null,
 };
+
+// Browser previews need a small history so the radar can be inspected without
+// starting a Tauri process. The desktop path reads the same shape from the
+// privacy-filtered Rust store instead of manufacturing account data.
+const mockHistory: QuotaHistoryPoint[] = Array.from({ length: 6 }, (_, index) => {
+  const ageHours = 5 - index;
+  return {
+    provider: "codex",
+    capturedAt: new Date(Date.now() - ageHours * 60 * 60 * 1000).toISOString(),
+    status: "ok",
+    shortRemainingPercent: 95 - index * 4.2,
+    weeklyRemainingPercent: 62 - index * 4,
+  };
+});
 
 let widgetTransition: Promise<void> = Promise.resolve();
 
@@ -29,6 +43,18 @@ export async function fetchSnapshots(force = false): Promise<ProviderSnapshot[]>
   if (!isTauri()) return [mockSnapshot];
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<ProviderSnapshot[]>(force ? "refresh_snapshots" : "get_snapshots");
+}
+
+export async function getQuotaHistory(): Promise<QuotaHistoryPoint[]> {
+  if (!isTauri()) return mockHistory;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<QuotaHistoryPoint[]>("get_quota_history");
+}
+
+export async function clearQuotaHistory(): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("clear_quota_history");
 }
 
 export async function getPreferences(): Promise<WidgetPreferences> {
@@ -55,28 +81,17 @@ export async function setAlwaysOnTop(alwaysOnTop: boolean): Promise<WidgetPrefer
   return invoke<WidgetPreferences>("set_widget_always_on_top", { alwaysOnTop });
 }
 
-export async function syncWidgetAppearance(appearance: "light" | "dark"): Promise<void> {
+export async function syncWidgetAppearance(appearance: WidgetTheme): Promise<void> {
   if (!isTauri()) return;
   const { invoke } = await import("@tauri-apps/api/core");
   await invoke("sync_widget_appearance", { appearance });
 }
 
-export async function getSupporterStatus(): Promise<SupporterStatus> {
-  if (!isTauri()) return { requestCode: "Browser preview does not have a device code", active: false, message: "Supporter activation is available in the desktop app.", unlockedSkin: null, unlockedSkins: [], selectedSkin: "default", availableSkins: ["default"] };
+export async function setWidgetOpacity(opacity: number): Promise<WidgetPreferences> {
+  const normalized = Math.min(100, Math.max(0, Math.round(opacity)));
+  if (!isTauri()) return { ...defaultPreferences, opacity: normalized };
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<SupporterStatus>("get_supporter_status");
-}
-
-export async function activateSupporterLicense(license: string): Promise<SupporterStatus> {
-  if (!isTauri()) throw new Error("Supporter activation is available in the desktop app.");
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<SupporterStatus>("activate_supporter_license", { license });
-}
-
-export async function selectSupporterSkin(skinId: WidgetSkin): Promise<SupporterStatus> {
-  if (!isTauri()) throw new Error("Supporter skin selection is available in the desktop app.");
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<SupporterStatus>("select_supporter_skin", { skinId });
+  return invoke<WidgetPreferences>("set_widget_opacity", { opacity: normalized });
 }
 
 export async function startDragging(): Promise<void> {

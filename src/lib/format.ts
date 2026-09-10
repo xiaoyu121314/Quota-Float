@@ -47,6 +47,20 @@ export function formatResetDate(value: string | null, language: Language = "zh-C
   return new Intl.DateTimeFormat(language === "en" ? "en-US" : "zh-CN", { month: "numeric", day: "numeric" }).format(date);
 }
 
+/** Formats a weekly reset using the weekly window's own date and time. */
+export function formatResetDateTime(value: string | null, language: Language = "zh-CN"): string {
+  const date = formatResetDate(value, language);
+  if (date === copy[normalizeLanguage(language)].dateUnknown) return date;
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) return date;
+  const time = new Intl.DateTimeFormat(language === "en" ? "en-US" : "zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: language === "en",
+  }).format(parsed);
+  return `${date} ${time}`;
+}
+
 export function formatDateTime(value: string, language: Language): string {
   const t = copy[normalizeLanguage(language)];
   const date = new Date(value);

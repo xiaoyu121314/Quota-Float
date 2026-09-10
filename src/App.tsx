@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { QuotaCard, QuotaOrb } from "./components/QuotaCard";
-import { fetchSnapshots, getPreferences, getSupporterStatus, listenDesktopEvents, setAlwaysOnTop, setWidgetExpanded, startDragging, syncWidgetAppearance, updatePreferences } from "./lib/bridge";
+import { clearQuotaHistory, fetchSnapshots, getPreferences, getQuotaHistory, listenDesktopEvents, setAlwaysOnTop, setWidgetExpanded, startDragging, syncWidgetAppearance, updatePreferences } from "./lib/bridge";
 import { needsFastRefresh, quotaTier } from "./lib/format";
 import { checkForAppUpdate, openReleasePage } from "./lib/appUpdate";
 import { copy, normalizeLanguage } from "./lib/i18n";
 import { mergeSnapshots } from "./lib/snapshots";
 import { DESKTOP_PALETTES } from "./lib/desktopPalette";
-import type { ProviderSnapshot, WidgetPreferences, WidgetSkin, WidgetTheme } from "./types";
+import type { ProviderSnapshot, QuotaHistoryPoint, WidgetPreferences, WidgetTheme } from "./types";
 
-const DEFAULT_PREFS: WidgetPreferences = { locked: false, alwaysOnTop: true, stayExpanded: false, pinnedProvider: null, autoRotateSeconds: 12, language: "zh-CN", appearance: "light", license: null, licenses: [], unlockedSkin: null, unlockedSkins: [], selectedSkin: "default" };
+const DEFAULT_PREFS: WidgetPreferences = { locked: false, alwaysOnTop: true, stayExpanded: false, pinnedProvider: null, autoRotateSeconds: 12, language: "zh-CN", appearance: "light", opacity: 100 };
 const INITIAL_SNAPSHOT: ProviderSnapshot = {
   provider: "codex",
   displayName: "CODEX",
@@ -24,6 +24,8 @@ const INITIAL_SNAPSHOT: ProviderSnapshot = {
 
 export default function App() {
   const [snapshots, setSnapshots] = useState<ProviderSnapshot[]>([]);
+  const [quotaHistory, setQuotaHistory] = useState<QuotaHistoryPoint[]>([]);
+  const [showRadar, setShowRadar] = useState(false);
   const [preferences, setPreferences] = useState(DEFAULT_PREFS);
   const [activeIndex, setActiveIndex] = useState(0);
   const [hovered, setHovered] = useState(false);
@@ -46,6 +48,7 @@ export default function App() {
     expandFailed: "组件展开失败。",
     collapseFailed: "组件收起失败。",
     releaseOpenFailed: "无法打开 GitHub Releases。",
+    historyClearFailed: "趋势历史清空失败，请重试。",
   } : {
     listenerFailed: "Desktop event listener failed to start.",
     settingsFailed: "Settings could not be saved. Previous state restored.",
@@ -53,13 +56,9 @@ export default function App() {
     expandFailed: "Widget expand failed.",
     collapseFailed: "Widget collapse failed.",
     releaseOpenFailed: "Could not open GitHub Releases.",
+    historyClearFailed: "Could not clear trend history. Try again.",
   };
   const theme: WidgetTheme = preferences.appearance === "system" ? (systemDark ? "dark" : "light") : preferences.appearance;
-  const skin: WidgetSkin = preferences.unlockedSkins.includes(preferences.selectedSkin as Exclude<WidgetSkin, "default">)
-    && (preferences.selectedSkin === "blur" || preferences.selectedSkin === "computer")
-    ? preferences.selectedSkin
-    : "default";
-
   useEffect(() => {
     // This only reconciles the transparent-window safety inset after a theme
     // change. A platform refusal is non-fatal: the current widget geometry is
@@ -92,9 +91,16 @@ export default function App() {
     }, manual);
   }, [language, t]);
 
+  const syncQuotaHistory = useCallback(() => {
+    // History is a secondary read. A transient history-file failure must not
+    // turn an otherwise valid quota response into a stale card.
+    void getQuotaHistory().then(setQuotaHistory).catch(() => undefined);
+  }, []);
+
   const refresh = useCallback(async (force = false) => {
     try {
       const values = await fetchSnapshots(force);
+      syncQuotaHistory();
       const hasFailure = values.some((item) => item.status !== "ok");
       if (hasFailure) failures.current += 1;
       else failures.current = 0;
@@ -120,14 +126,12 @@ export default function App() {
         ? current.map((item) => ({ ...item, status: "stale", message: "Refresh failed. Please try again later." }))
         : [{ provider: "codex", displayName: "CODEX", plan: null, shortWindow: null, weeklyWindow: null, resetCredits: null, resetCreditExpiresAt: [], updatedAt: new Date().toISOString(), status: "unavailable", message: "Quota is temporarily unavailable. It will retry automatically." }]);
     }
-  }, []);
+  }, [syncQuotaHistory]);
 
   useEffect(() => {
     void refresh(true);
+    syncQuotaHistory();
     void (async () => {
-      // Validate and normalize stored supporter state before allowing it to
-      // affect rendering, avoiding a stale preference response re-enabling it.
-      await getSupporterStatus().catch(() => undefined);
       const value = await getPreferences().catch(async () => {
         // A WebView can occasionally issue its first invoke while it is
         // resuming. Retry once, then retain the already-safe defaults without
@@ -142,7 +146,7 @@ export default function App() {
       consumptionTimers.current.clear();
       if (collapseTimer.current !== null) window.clearTimeout(collapseTimer.current);
     };
-  }, [refresh]);
+  }, [refresh, syncQuotaHistory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +202,10 @@ export default function App() {
   // source. Theme records are independent so light and dark cannot leak into
   // one another through CSS defaults or preview state.
   const cardStyle = paletteName ? DESKTOP_PALETTES[theme][paletteName] : undefined;
+  const widgetStyle = {
+    ...(cardStyle ?? {}),
+    "--widget-opacity": `${preferences.opacity / 100}`,
+  } as CSSProperties;
 
   const savePreferences = useCallback((next: WidgetPreferences) => {
     const previous = preferences;
@@ -205,6 +213,17 @@ export default function App() {
     setOperationError(null);
     void updatePreferences(next).catch(() => { setPreferences(previous); setOperationError(operation.settingsFailed); });
   }, [operation.settingsFailed, preferences]);
+
+  const handleClearHistory = useCallback(async () => {
+    try {
+      await clearQuotaHistory();
+      setQuotaHistory([]);
+      setOperationError(null);
+    } catch (error) {
+      setOperationError(operation.historyClearFailed);
+      throw error;
+    }
+  }, [operation.historyClearFailed]);
 
   const handleHover = useCallback((value: boolean) => {
     if (collapseTimer.current !== null) {
@@ -240,7 +259,7 @@ export default function App() {
   }, [operation.expandFailed, preferences.stayExpanded]);
 
   if (compact) {
-    return <QuotaOrb snapshot={current} language={language} onDrag={() => startDragging()} onHover={handleHover} theme={theme} skin={skin} style={cardStyle} />;
+    return <QuotaOrb snapshot={current} language={language} onDrag={() => startDragging()} onHover={handleHover} theme={theme} style={widgetStyle} />;
   }
 
   return (
@@ -256,10 +275,13 @@ export default function App() {
       onDrag={() => startDragging()}
       onHover={handleHover}
       onRefresh={() => refresh(true)}
+      history={quotaHistory}
+      showRadar={showRadar}
+      onToggleRadar={() => setShowRadar((value) => !value)}
+      onClearHistory={handleClearHistory}
       isConsuming={consumingProviders.has(current.provider)}
       theme={theme}
-      skin={skin}
-      style={cardStyle}
+      style={widgetStyle}
       notice={showUpdateFallback && operationError ? <><span>{operationError}</span><button type="button" onMouseDown={(event) => event.stopPropagation()} onClick={() => void openReleasePage().catch(() => setOperationError(operation.releaseOpenFailed))}>GitHub Releases</button></> : operationError}
     />
   );
