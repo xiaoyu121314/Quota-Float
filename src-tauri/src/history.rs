@@ -227,6 +227,7 @@ mod tests {
             }),
             reset_credits: None,
             reset_credit_expires_at: Vec::new(),
+            token_activity: None,
             updated_at: time.to_rfc3339(),
             status: status.into(),
             message: None,

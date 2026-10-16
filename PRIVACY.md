@@ -1,8 +1,9 @@
 # Privacy
 
 Quota Float is a local-first desktop utility. It reads the existing Codex
-Desktop login state only to request quota data, keeps the useful display state
-on the device, and does not operate a project-owned proxy or analytics service.
+Desktop login state to request quota data and reads dedicated local session
+usage records to display Token activity. It keeps the useful display state on
+the device and does not operate a project-owned proxy or analytics service.
 
 This notice covers the Tauri desktop app. The browser preview uses mock data and
 does not read a Codex login file or request live quota data.
@@ -14,7 +15,7 @@ does not read a Codex login file or request live quota data.
 | Find the Codex login | The path is resolved from `CODEX_HOME`, or from the user's `.codex` directory when that variable is not set | Read locally by the desktop process |
 | Build quota requests | Access token and optional ChatGPT account identifier | Sent over HTTPS to the two quota endpoints listed below; retained only for the request lifecycle |
 | Parse the response | Plan, quota windows, reset times, reset-credit count, and expiration times | Held in app memory for display; raw responses are not written to disk |
-| Update check | Public release metadata and, after confirmation on Windows, the signed update artifact | GitHub Releases; no Codex credential is sent to the updater endpoint |
+| Build Token activity | Timestamp and cumulative total from dedicated local `token_usage_record` entries | Aggregated by day in memory; conversation text and tool output are not retained or sent |
 | Save preferences | Widget behavior and appearance choices | Local Tauri application config directory |
 | Save quota-radar history | Timestamp, provider, status, and remaining percentages | Local filtered JSON history; never uploaded by Quota Float |
 
@@ -31,7 +32,15 @@ not present, it may read the corresponding identifier claim from the token
 payload. The token payload is parsed locally; no separate token-introspection
 request is made.
 
-The app does not search the rest of the user's files for credentials.
+For Token activity, it also reads Codex session files named `rollout-*.jsonl`
+under `CODEX_HOME/sessions` or, when `CODEX_HOME` is unset,
+`.codex/sessions`. It processes only the dedicated `token_usage_record` type
+and uses its timestamp and cumulative total to calculate daily increments.
+Conversation text and tool-output records are skipped; activity totals exist in
+memory only.
+
+The app does not search elsewhere in the user's files for credentials or
+session data.
 
 ## What the app sends
 
@@ -48,24 +57,10 @@ The request may also include the account identifier in the header expected by
 the quota service. Quota requests use the desktop process, do not follow
 redirects, and cap response bodies at 1 MB.
 
-### Update requests
-
-The Tauri updater may check the configured GitHub Releases metadata endpoint:
-
-```text
-https://github.com/change-42-yhmm/quota-float/releases/latest/download/latest.json
-```
-
-If an update is available, Windows asks for confirmation before downloading and
-installing it. On macOS, confirmation opens the GitHub release page so the user
-can download the appropriate bundle. GitHub and the quota service may receive
-ordinary network metadata such as an IP address under their own policies; this
-is not Quota Float telemetry.
-
-Quota Float does not send prompts, chat history, local file contents, or raw
-quota responses to a Quota Float-owned service. The access token and optional
-account identifier are sent only to the ChatGPT quota endpoints described
-above, as required for the quota request.
+Quota Float does not send prompts, chat history, local file contents, local
+Token activity, or raw quota responses to a Quota Float-owned service. The
+access token and optional account identifier are sent only to the ChatGPT quota
+endpoints described above, as required for the quota request.
 
 ## What is stored locally
 
@@ -78,7 +73,8 @@ The app stores these settings in its Tauri application config directory:
 - persistent expansion state;
 - pinned provider and rotation interval;
 - language and appearance; and
-- widget opacity.
+- widget opacity; and
+- the optional user-selected background image, stored locally as image data.
 
 ### Native window state
 
@@ -106,6 +102,7 @@ Quota Float does not persist:
 
 - Codex access tokens or account identifiers;
 - plan names, reset-credit metadata, or raw quota responses;
+- Token activity counts or local Token estimates;
 - user prompts, chat history, or local file contents; or
 - the path of the Codex authentication file or arbitrary personal file paths.
 
@@ -117,10 +114,10 @@ Float does not delete, modify, or upload it.
 The desktop app needs only the capabilities required to:
 
 - read the local authentication file and write its own app config;
-- make the quota HTTPS requests and check GitHub Releases for updates;
+- read dedicated Token usage metadata from the Codex sessions directory;
+- make the quota HTTPS requests;
 - create and control its floating windows and tray icon;
-- optionally register for start-at-login; and
-- restart itself after a confirmed Windows update.
+- optionally register for start-at-login.
 
 The current app does not include telemetry, analytics, crash reporting,
 advertising, or third-party tracking. It does not redeem reset credits or change
@@ -142,7 +139,8 @@ boundary.
 Quota Float displays quota windows returned by the Codex quota service. That
 service is not a stable public contract; if authentication or response fields
 change, the app shows a signed-out, unavailable, or stale state rather than
-guessing.
+guessing. Token activity is derived from locally recorded Codex usage totals;
+it is not a billing statement or a measurement of quota consumption.
 
 The quota radar derives only a percentage trend from multiple local snapshots.
 It does not measure token usage, determine billing, or predict the service's

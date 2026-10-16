@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
   calls: [] as string[],
-  invoke: vi.fn(async (command: string) => {
+  invoke: vi.fn(async (command: string, args?: { open?: boolean }): Promise<unknown> => {
     api.calls.push(`start:${command}`);
     await Promise.resolve();
     api.calls.push(`end:${command}`);
+    if (command === "set_widget_menu_open") return { x: 0, y: 0 };
   }),
   currentMonitor: vi.fn(async () => ({
     workArea: { position: { x: 0, y: 0 }, size: { width: 1920, height: 1040 } },
@@ -41,10 +42,34 @@ describe("widget transitions", () => {
     ]);
   });
 
-  it("passes the click-through state to the desktop command", async () => {
+  it("opens the separate menu in order without moving the widget root", async () => {
+    const setProperty = vi.fn();
+    vi.stubGlobal("document", { documentElement: { style: { setProperty } } });
+    const { setWidgetExpanded, setWidgetMenuOpen } = await import("./bridge");
+    await Promise.all([
+      setWidgetExpanded(true), setWidgetMenuOpen(true),
+      setWidgetMenuOpen(false), setWidgetExpanded(false),
+    ]);
+    expect(api.calls).toEqual([
+      "start:expand_widget", "end:expand_widget",
+      "start:set_widget_menu_open", "end:set_widget_menu_open",
+      "start:set_widget_menu_open", "end:set_widget_menu_open",
+      "start:collapse_widget", "end:collapse_widget",
+    ]);
+    expect(setProperty).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("passes click-through=%s to the desktop command", async (locked) => {
     const { setClickThrough } = await import("./bridge");
-    await setClickThrough(true);
-    expect(api.invoke).toHaveBeenCalledWith("set_widget_locked", { locked: true });
+    await setClickThrough(locked);
+    expect(api.invoke).toHaveBeenCalledWith("set_widget_locked", { locked });
+  });
+
+  it("passes the selected background data URL to the desktop command", async () => {
+    const { setWidgetBackgroundImage } = await import("./bridge");
+    const image = "data:image/png;base64,aGVsbG8=";
+    await setWidgetBackgroundImage(image);
+    expect(api.invoke).toHaveBeenCalledWith("set_widget_background_image", { customBackgroundImage: image });
   });
 
   it("loads and clears quota history through the desktop commands", async () => {

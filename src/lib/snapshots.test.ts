@@ -9,6 +9,7 @@ const success: ProviderSnapshot = {
   shortWindow: { remainingPercent: 74, resetsAt: "2026-07-07T02:00:00Z", windowSeconds: 18_000 },
   weeklyWindow: { remainingPercent: 42, resetsAt: "2026-07-10T00:00:00Z", windowSeconds: 604_800 },
   resetCredits: 1,
+  tokenActivity: null,
   updatedAt: "2026-07-07T00:00:00Z",
   status: "ok",
   message: null,

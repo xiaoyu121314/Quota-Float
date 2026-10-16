@@ -6,10 +6,12 @@
  * the visual remains available in the browser design preview.
  */
 import { Minus, Trash, TrendDown, TrendUp } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { clampPercent, formatDateTime, formatResetTime } from "../lib/format";
 import { calculateQuotaTrend, formatRadarDuration, getRadarPercent } from "../lib/quotaRadar";
 import { copy, normalizeLanguage } from "../lib/i18n";
 import type { Language, ProviderSnapshot, QuotaHistoryPoint, QuotaRadarRange, QuotaTrend } from "../types";
+import { TokenActivityPanel } from "./TokenActivityPanel";
 
 type RadarCopy = {
   radarTitle: string;
@@ -17,8 +19,13 @@ type RadarCopy = {
   radarClearConfirm: string;
   radarCleared: string;
   radarClearFailed: string;
+  radarClearCancel: string;
+  radarClearNow: string;
   radarShortWindow: string;
   radarWeeklyWindow: string;
+  radarCurrentShort: string;
+  radarCurrentWeekly: string;
+  radarCurrentUnavailable: string;
   radarRange24h: string;
   radarRange7d: string;
   radarRange30d: string;
@@ -62,6 +69,23 @@ function summaryFor(trend: QuotaTrend, language: Language, t: RadarCopy): string
     return t.radarForecast(formatRadarDuration(remaining, language));
   }
   return t.radarStable;
+}
+
+function CurrentQuotaSummary({ snapshot, language, t }: { snapshot: ProviderSnapshot; language: Language; t: RadarCopy }) {
+  const short = snapshot.shortWindow ? clampPercent(snapshot.shortWindow.remainingPercent) : null;
+  const weekly = snapshot.weeklyWindow ? clampPercent(snapshot.weeklyWindow.remainingPercent) : null;
+  const displayPercent = short ?? weekly;
+  const displayWindow = snapshot.shortWindow ?? snapshot.weeklyWindow;
+  const displayingWeeklyAsPrimary = short === null && weekly !== null;
+  const label = displayingWeeklyAsPrimary ? t.radarCurrentWeekly : t.radarCurrentShort;
+  return <section className="quota-radar__current" aria-label={label}>
+    <div className="quota-radar__current-head">
+      <span>{label}</span>
+      <strong>{displayPercent === null ? "--" : displayPercent}<small>{displayPercent === null ? "" : "%"}</small></strong>
+    </div>
+    {displayPercent !== null ? <div className="quota-radar__current-progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayPercent}><span style={{ width: `${displayPercent}%` }} /></div> : <p className="quota-radar__current-empty">{t.radarCurrentUnavailable}</p>}
+    <p className="quota-radar__current-reset">{formatResetTime(displayWindow?.resetsAt ?? null, new Date(), language)}{displayWindow?.resetsAt ? ` · ${formatDateTime(displayWindow.resetsAt, language)}` : ""}</p>
+  </section>;
 }
 
 function Sparkline({ points, window, label, className }: { points: QuotaHistoryPoint[]; window: "short" | "weekly"; label: string; className: string }) {
@@ -113,48 +137,80 @@ export function QuotaRadarPanel({ snapshot, history, language: requestedLanguage
   const [range, setRange] = useState<QuotaRadarRange>("24h");
   const [clearing, setClearing] = useState(false);
   const [clearMessage, setClearMessage] = useState("");
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const clearConfirmRef = useRef<HTMLDivElement>(null);
   const t = copy[language];
   const shortTrend = calculateQuotaTrend(history.filter((point) => point.provider === snapshot.provider), "short", range, snapshot.shortWindow?.resetsAt ?? null);
   const weeklyTrend = calculateQuotaTrend(history.filter((point) => point.provider === snapshot.provider), "weekly", range, snapshot.weeklyWindow?.resetsAt ?? null);
 
+  useEffect(() => {
+    if (!confirmingClear) return;
+    const handleOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !clearConfirmRef.current?.contains(event.target)) setConfirmingClear(false);
+    };
+    document.addEventListener("pointerdown", handleOutsidePointer);
+    return () => document.removeEventListener("pointerdown", handleOutsidePointer);
+  }, [confirmingClear]);
+
+  const requestClearHistory = () => {
+    if (!onClearHistory || history.length === 0 || clearing) return;
+    setClearMessage("");
+    setConfirmingClear(true);
+  };
+
   const clearHistory = async () => {
-    if (!onClearHistory || history.length === 0 || !window.confirm(t.radarClearConfirm)) return;
+    if (!onClearHistory || history.length === 0 || clearing) return;
     setClearing(true);
     setClearMessage("");
     try {
       await onClearHistory();
       setClearMessage(t.radarCleared);
+      setConfirmingClear(false);
     } catch {
       setClearMessage(t.radarClearFailed);
+      setConfirmingClear(false);
     } finally {
       setClearing(false);
     }
   };
 
   return (
-    <section className="quota-radar" aria-label={t.radarTitle} onMouseDown={(event) => event.stopPropagation()}>
+    <section className="quota-radar" aria-label={t.radarTitle} onMouseDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
       <header className="quota-radar__header">
         <div>
           <p className="quota-radar__eyebrow">{t.radarTitle}</p>
           <strong>{snapshot.displayName}</strong>
         </div>
-        <button type="button" className="quota-radar__clear" onClick={() => void clearHistory()} disabled={clearing || history.length === 0} aria-label={t.radarClearHistory} title={t.radarClearHistory}>
-          <Trash />
-        </button>
-      </header>
-      <div className="quota-radar__ranges" role="tablist" aria-label={t.radarTitle}>
-        {RANGE_OPTIONS.map((option) => (
-          <button key={option.value} type="button" role="tab" aria-selected={range === option.value} className={range === option.value ? "is-active" : undefined} onClick={() => setRange(option.value)}>
-            {t[option.labelKey]}
+        <div className="quota-radar__clear-wrap" ref={clearConfirmRef}>
+          <button type="button" className="quota-radar__clear" onClick={requestClearHistory} disabled={clearing || history.length === 0} aria-label={t.radarClearHistory} title={t.radarClearHistory}>
+            <Trash />
           </button>
-        ))}
+          {confirmingClear ? <div className="quota-radar__clear-confirm" role="alertdialog" aria-label={t.radarClearConfirm} onMouseDown={(event) => event.stopPropagation()}>
+            <p>{t.radarClearConfirm}</p>
+            <div>
+              <button type="button" onClick={() => setConfirmingClear(false)}>{t.radarClearCancel}</button>
+              <button type="button" className="is-danger" onClick={() => void clearHistory()} disabled={clearing}>{t.radarClearNow}</button>
+            </div>
+          </div> : null}
+        </div>
+      </header>
+      <CurrentQuotaSummary snapshot={snapshot} language={language} t={t} />
+      <div className="quota-radar__scroll" tabIndex={0} aria-label={t.radarTitle}>
+        <div className="quota-radar__ranges" role="tablist" aria-label={t.radarTitle}>
+          {RANGE_OPTIONS.map((option) => (
+            <button key={option.value} type="button" role="tab" aria-selected={range === option.value} className={range === option.value ? "is-active" : undefined} onClick={() => setRange(option.value)}>
+              {t[option.labelKey]}
+            </button>
+          ))}
+        </div>
+        <div className="quota-radar__metrics">
+          <TrendMetric title={t.radarShortWindow} trend={shortTrend} window="short" language={language} t={t} />
+          <TrendMetric title={t.radarWeeklyWindow} trend={weeklyTrend} window="weekly" language={language} t={t} secondary />
+        </div>
+        <p className="quota-radar__summary" role="status">{summaryFor(snapshot.shortWindow ? shortTrend : weeklyTrend, language, t)}</p>
+        <TokenActivityPanel activity={snapshot.tokenActivity} language={language} />
+        {clearMessage ? <p className="quota-radar__message" role="status">{clearMessage}</p> : null}
       </div>
-      <div className="quota-radar__metrics">
-        <TrendMetric title={t.radarShortWindow} trend={shortTrend} window="short" language={language} t={t} />
-        <TrendMetric title={t.radarWeeklyWindow} trend={weeklyTrend} window="weekly" language={language} t={t} secondary />
-      </div>
-      <p className="quota-radar__summary" role="status">{summaryFor(snapshot.shortWindow ? shortTrend : weeklyTrend, language, t)}</p>
-      {clearMessage ? <p className="quota-radar__message" role="status">{clearMessage}</p> : null}
     </section>
   );
 }

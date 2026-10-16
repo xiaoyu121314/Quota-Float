@@ -27,42 +27,62 @@ The app can show:
   percentage drops between refreshes; and
 - a local quota radar that visualizes percentage trends and gives a
   reset-aware, conservative exhaustion estimate when the sample is sufficient.
+- local Codex Token activity, shown as daily, weekly, or cumulative usage from
+  the desktop's dedicated session-usage records.
 
 ## Desktop features
 
 - Compact floating orb that expands on hover.
 - Dragging, edge docking, persistent expansion, and always-on-top controls.
 - Click-through lock and real-time widget opacity settings.
+- Optional local background image for the expanded card and compact orb.
 - Provider pinning and automatic rotation infrastructure for provider-aware
   views; Codex is the only active provider today.
 - Chinese and English UI/tray actions.
 - System, light, dark, Sakura Night, Warm Daily Orange, City Dusk Purple, and
   Home Night appearances.
-- Automatic update checks; Windows supports signed in-app download and
-  installation, while macOS opens the release page for the available bundle.
 - Local quota-radar history retained for up to 30 days and clearable from the
   radar view.
 
 The complete data boundary is documented in [PRIVACY.md](PRIVACY.md). Security
 reporting guidance is in [SECURITY.md](SECURITY.md).
 
-## Screenshots
+## Visual gallery
 
-| Quota states | Floating orb | Reset-credit expiration |
+### Feature previews
+
+| Healthy state | Caution state | Critical state |
 | --- | --- | --- |
-| ![Healthy, caution, and critical quota states](docs/images/quota-states.png) | ![Collapsed quota orb](docs/images/quota-orb.png) | ![Reset-credit expiration popover](docs/images/quota-reset-expiration.png) |
+| <img src="docs/images/generated-feature-healthy.png" alt="Healthy quota card state" width="240"> | <img src="docs/images/generated-feature-caution.png" alt="Caution quota card state" width="240"> | <img src="docs/images/generated-feature-critical.png" alt="Critical quota card state" width="240"> |
 
-### Weekly quota fallback
+### Additional feature states
 
-| Expanded weekly view | Weekly quota orb |
-| --- | --- |
-| ![Expanded weekly quota fallback](docs/images/quota-v0.1.4-weekly-fallback.png) | ![Weekly quota orb with W badge](docs/images/quota-v0.1.4-weekly-orb.png) |
+| Weekly quota fallback | Weekly quota orb | Reset-credit details | Quota radar |
+| --- | --- | --- | --- |
+| <img src="docs/images/generated-feature-weekly.png" alt="Weekly quota fallback card" width="220"> | <img src="docs/images/generated-feature-weekly-orb.png" alt="Weekly quota floating orb with W badge" width="120"> | <img src="docs/images/generated-feature-reset-credit.png" alt="Reset-credit details popover" width="220"> | <img src="docs/images/generated-feature-radar.png" alt="Quota radar view" width="220"> |
 
-### Dark healthy state
+### Theme-applied widget
 
-![Quota Float dark healthy-state preview](docs/images/quota-v0.2.4-dark-healthy.jpg)
+These previews are generated from the current React desktop components with
+mock quota data. They show the photo-backed theme applied to the actual quota
+card, rather than displaying the background asset on its own.
 
-All screenshots use mock quota data. They do not contain account information.
+<table>
+  <tr>
+    <th>Sakura Night</th>
+    <th>Warm Daily Orange</th>
+    <th>City Dusk Purple</th>
+    <th>Home Night</th>
+  </tr>
+  <tr>
+    <td><img src="docs/images/generated-theme-sakura-night.png" alt="Sakura Night theme applied to the quota card" width="220"></td>
+    <td><img src="docs/images/generated-theme-warm-daily-orange.png" alt="Warm Daily Orange theme applied to the quota card" width="220"></td>
+    <td><img src="docs/images/generated-theme-city-dusk-purple.png" alt="City Dusk Purple theme applied to the quota card" width="220"></td>
+    <td><img src="docs/images/generated-theme-home-night.png" alt="Home Night theme applied to the quota card" width="220"></td>
+  </tr>
+</table>
+
+All generated previews use mock quota values and contain no account information.
 
 ## How it works
 
@@ -75,11 +95,14 @@ All screenshots use mock quota data. They do not contain account information.
    - `https://chatgpt.com/backend-api/wham/usage`
    - `https://chatgpt.com/backend-api/wham/rate-limit-reset-credits`
 
-4. It parses recognized quota windows and reset-credit fields in memory. If the
-   response shape is unknown, the widget shows an unavailable state instead of
-   inventing values.
+4. It parses recognized quota windows and reset-credit fields in memory. It
+   also reads only the dedicated `token_usage_record` entries under
+   `CODEX_HOME/sessions` (or `.codex/sessions` when `CODEX_HOME` is unset) and
+   aggregates their timestamps and cumulative totals into daily usage. It does
+   not parse conversation text or tool output for this chart.
 5. Within its own application data, it persists widget settings, native window
-   geometry, and only the filtered percentage history used by the quota radar.
+   geometry, and only the filtered percentage history used by the quota radar;
+   Token activity counts remain in memory and are not uploaded or persisted.
 
 The browser preview (`npm run dev`) returns mock snapshots and mock history; it
 cannot verify a real login, network request, or desktop integration.
@@ -96,12 +119,11 @@ After installation:
 1. Confirm that Codex Desktop is signed in.
 2. Launch Quota Float. The widget starts as a compact orb and expands when you
    hover over it.
-3. Use the tray menu for refresh, settings, appearance, startup, update, and
+3. Use the tray menu for refresh, settings, appearance, startup, and
    quit actions.
 
-Updater artifacts are signed with the project's Tauri updater key. Windows
-Authenticode signing and macOS Developer ID signing/notarization are separate
-platform steps; a build without those certificates may still trigger
+Windows Authenticode signing and macOS Developer ID signing/notarization are
+separate platform steps; a build without those certificates may still trigger
 SmartScreen or Gatekeeper warnings.
 
 For bugs, compatibility reports, and feature requests, use
@@ -163,8 +185,7 @@ GitHub Actions currently provide:
 
 - CI on pushes and pull requests: frontend tests, TypeScript/Vite build, Rust
   tests, an unsigned desktop build, and a high-severity npm audit.
-- `v*` tags: Windows and macOS Universal installers, Tauri updater signatures,
-  `latest.json`, and a GitHub Release draft.
+- `v*` tags: Windows and macOS Universal installers and a GitHub Release draft.
 
 Keep credentials and local artifacts out of source control. In particular, do
 not commit `.codex`, `.env*`, personal screenshots, `node_modules`, `dist`,

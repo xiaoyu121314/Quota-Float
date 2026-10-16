@@ -13,18 +13,28 @@ const base: ProviderSnapshot = {
   provider: "codex", displayName: "CODEX", plan: "PRO",
   shortWindow: { remainingPercent: 74, resetsAt: new Date(Date.now() + 78 * 60_000).toISOString(), windowSeconds: 18_000 },
   weeklyWindow: { remainingPercent: 42, resetsAt: new Date(Date.now() + 3.2 * 86_400_000).toISOString(), windowSeconds: 604_800 },
-  resetCredits: 1, resetCreditExpiresAt: [], updatedAt: new Date().toISOString(), status: "ok", message: null,
+  resetCredits: 1, resetCreditExpiresAt: [], tokenActivity: {
+    daily: Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      const base = Math.floor(Math.random() * 500000) + 50000;
+      const weekday = date.getDay();
+      const mult = weekday === 0 || weekday === 6 ? 0.3 : 1;
+      return { startAt: date.toISOString().slice(0, 10), tokenCount: Math.floor(base * mult) };
+    }),
+    totalTokens: 8500000,
+  }, updatedAt: new Date().toISOString(), status: "ok", message: null,
 };
-const preferences: WidgetPreferences = { locked: false, alwaysOnTop: true, stayExpanded: false, pinnedProvider: "codex", autoRotateSeconds: 12, language: "en", appearance: "system", opacity: 100 };
+const preferences: WidgetPreferences = { locked: false, alwaysOnTop: true, stayExpanded: false, autoRotateSeconds: 12, language: "en", appearance: "system", opacity: 100, liquidGlassEnabled: false, customBackgroundImage: null };
 const defaults: Controls = { radius: 38, numberSize: 64, progressHeight: 6, brightness: 100, motion: 18 };
-const THEME_OPTIONS: WidgetTheme[] = ["light", "dark", "sakura", "warm", "city", "home"];
+const THEME_OPTIONS: WidgetTheme[] = ["light", "dark", "sakura", "warm", "city", "home", "naruto", "yone", "glacier"];
 const names: DesktopPaletteName[] = ["healthy", "caution", "critical", "unavailable", "stale", "signed_out"];
 const modes: Array<[Mode, string]> = [[74, "healthy"], [35, "caution"], [8, "critical"], ["weekly", "weekly"], ["healthy-orb", "healthyOrb"], ["caution-orb", "cautionOrb"], ["critical-orb", "criticalOrb"], ["weekly-orb", "weeklyOrb"], ["unavailable", "unavailable"], ["stale", "stale"], ["signed_out", "signedOut"], ["unavailable-orb", "unavailableOrb"], ["stale-orb", "staleOrb"], ["signed_out-orb", "signedOutOrb"]];
 const fields = ["--cool", "--glow", "--warm", "--progress-start", "--progress-end"] as const;
 const workbenchCopy = {
   "zh-CN": {
     widget: "组件",
-    previewState: "预览状态", previewTheme: "预览主题", language: "内容语言", light: "浅色", dark: "深色", sakura: "樱花夜", warm: "温暖·日常橙", city: "城市·暮色紫", home: "居家·夜晚",
+    previewState: "预览状态", previewTheme: "预览主题", language: "内容语言", light: "浅色", dark: "深色", sakura: "樱花夜", warm: "温暖·日常橙", city: "城市·暮色紫", home: "居家·夜晚", naruto: "六道·鸣人", yone: "灵魂莲华·永恩", glacier: "冰川极光",
     geometryPreview: "几何预览", description: "配色为只读，始终来自桌面组件。以下几何调整仅用于此预览，并会在刷新后恢复默认。",
     source: "桌面来源：", cornerRadius: "圆角", mainNumber: "主数字", progressHeight: "进度条高度", brightness: "亮度", motion: "动效", reset: "重置几何设置",
     sourceValues: "桌面源数值", paletteMatrix: "配色矩阵", paletteDescription: "这些数值为只读。选择一个状态即可检查其生产环境外观；如需修改桌面配色，请编辑", preview: "预览",
@@ -32,7 +42,7 @@ const workbenchCopy = {
   },
   en: {
     widget: "Widget",
-    previewState: "Preview state", previewTheme: "Preview theme", language: "Content language", light: "Light", dark: "Dark", sakura: "Sakura Night", warm: "Warm Daily Orange", city: "City Dusk Purple", home: "Home Night",
+    previewState: "Preview state", previewTheme: "Preview theme", language: "Content language", light: "Light", dark: "Dark", sakura: "Sakura Night", warm: "Warm Daily Orange", city: "City Dusk Purple", home: "Home Night", naruto: "Naruto · Six Paths", yone: "Spirit Blossom · Yone", glacier: "Glacier Aurora",
     geometryPreview: "Geometry preview", description: "The palette is read-only and always comes from the desktop widget. Geometry changes below exist only in this preview and reset on refresh.",
     source: "Desktop source:", cornerRadius: "Corner radius", mainNumber: "Main number", progressHeight: "Progress height", brightness: "Brightness", motion: "Motion", reset: "Reset geometry",
     sourceValues: "Desktop source values", paletteMatrix: "Palette matrix", paletteDescription: "These values are read-only. Select a state to inspect its production appearance; edit", preview: "Preview",
@@ -67,7 +77,7 @@ export function DesignPlayground() {
   const query = new URLSearchParams(window.location.search);
   const [theme, setTheme] = useState<WidgetTheme>(() => {
     const requested = query.get("theme");
-    return requested === "dark" || requested === "sakura" || requested === "warm" || requested === "city" || requested === "home" ? requested : "light";
+    return THEME_OPTIONS.find((value) => value === requested) ?? "light";
   });
   const [mode, setMode] = useState<Mode>(() => {
     const requested = query.get("mode");
@@ -90,7 +100,7 @@ export function DesignPlayground() {
   const selectPalette = (nextTheme: WidgetTheme, name: DesktopPaletteName) => { setTheme(nextTheme); setMode(modeForPalette(name)); };
   const render = (item: ProviderSnapshot) => isOrb
     ? <QuotaOrb snapshot={item} language={language} onDrag={() => {}} onHover={() => {}} theme={theme} style={style(item)} />
-    : <QuotaCard snapshot={item} preferences={{ ...preferences, language }} providerCount={1} onPrevious={() => {}} onNext={() => {}} onTogglePin={() => {}} onLock={() => {}} onToggleStayExpanded={() => {}} onDrag={() => {}} onHover={() => {}} theme={theme} style={style(item)} />;
+    : <QuotaCard snapshot={item} preferences={{ ...preferences, language }} providerCount={1} onPrevious={() => {}} onNext={() => {}} onLock={() => {}} onToggleStayExpanded={() => {}} onDrag={() => {}} onHover={() => {}} theme={theme} style={style(item)} />;
 
   return <main className={`design-workbench design-workbench--${theme}`}>
     <section className="design-stage" aria-label={t.widget}>
@@ -98,7 +108,7 @@ export function DesignPlayground() {
         {modes.map(([value, label]) => <button key={label} className={mode === value ? "is-active" : ""} onClick={() => setMode(value)}>{t[label as keyof typeof t]}</button>)}
       </div>
       <div className="design-theme-switch" role="group" aria-label={t.previewTheme}>
-        {THEME_OPTIONS.map((value) => <button key={value} className={theme === value ? "is-active" : ""} onClick={() => setTheme(value)}>{value === "light" ? t.light : value === "dark" ? t.dark : value === "sakura" ? t.sakura : value === "warm" ? t.warm : value === "city" ? t.city : t.home}</button>)}
+        {THEME_OPTIONS.map((value) => <button key={value} className={theme === value ? "is-active" : ""} onClick={() => setTheme(value)}>{t[value as keyof typeof t] as string}</button>)}
       </div>
       <div className={isOrb ? "design-orb-frame" : "design-card-frame"}>{render(snapshot)}</div>
     </section>
@@ -115,7 +125,7 @@ export function DesignPlayground() {
     </aside>
     <section className="palette-matrix" aria-labelledby="palette-matrix-title">
       <header className="palette-matrix__header"><p className="design-kicker">{t.sourceValues}</p><h2 id="palette-matrix-title">{t.paletteMatrix}</h2><p>{t.paletteDescription} <code>src/lib/desktopPalette.ts</code>{language === "zh-CN" ? "。" : "."}</p></header>
-      <div className="palette-matrix__themes">{THEME_OPTIONS.map((matrixTheme) => <section className={`palette-theme palette-theme--${matrixTheme}`} key={matrixTheme} aria-label={`${matrixTheme} ${t.paletteMatrix}`}><h3>{matrixTheme === "light" ? t.light : matrixTheme === "dark" ? t.dark : matrixTheme === "sakura" ? t.sakura : matrixTheme === "warm" ? t.warm : matrixTheme === "city" ? t.city : t.home}</h3>{names.map((name) => <PaletteCard key={name} theme={matrixTheme} name={name} label={t[name === "signed_out" ? "signedOut" : name]} previewLabel={t.preview} selected={theme === matrixTheme && active === name} onSelect={() => selectPalette(matrixTheme, name)} />)}</section>)}</div>
+      <div className="palette-matrix__themes">{THEME_OPTIONS.map((matrixTheme) => <section className={`palette-theme palette-theme--${matrixTheme}`} key={matrixTheme} aria-label={`${matrixTheme} ${t.paletteMatrix}`}><h3>{t[matrixTheme as keyof typeof t] as string}</h3>{names.map((name) => <PaletteCard key={name} theme={matrixTheme} name={name} label={t[name === "signed_out" ? "signedOut" : name]} previewLabel={t.preview} selected={theme === matrixTheme && active === name} onSelect={() => selectPalette(matrixTheme, name)} />)}</section>)}</div>
     </section>
   </main>;
 }

@@ -31,7 +31,7 @@ describe("quota formatting", () => {
 
   it("accelerates only near a future reset", () => {
     const now = new Date("2026-07-07T00:00:00Z");
-    const snapshot = { provider: "codex", displayName: "CODEX", plan: "PRO", weeklyWindow: null, resetCredits: 0, updatedAt: now.toISOString(), status: "ok", message: null } as const;
+    const snapshot = { provider: "codex", displayName: "CODEX", plan: "PRO", weeklyWindow: null, resetCredits: 0, tokenActivity: null, updatedAt: now.toISOString(), status: "ok", message: null } as const;
     expect(needsFastRefresh({ ...snapshot, shortWindow: { remainingPercent: 1, resetsAt: "2026-07-07T00:10:00Z", windowSeconds: 18000 } }, now)).toBe(true);
     expect(needsFastRefresh({ ...snapshot, shortWindow: { remainingPercent: 1, resetsAt: "2026-07-07T01:00:00Z", windowSeconds: 18000 } }, now)).toBe(false);
     expect(needsFastRefresh({ ...snapshot, shortWindow: { remainingPercent: 1, resetsAt: "2026-07-06T23:58:00Z", windowSeconds: 18000 } }, now)).toBe(true);

@@ -4,12 +4,14 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION};
 use serde_json::Value;
 
-use crate::models::{ProviderSnapshot, UsageWindow};
+use crate::models::{ProviderSnapshot, TokenActivity, TokenActivityBucket, UsageWindow};
 
 const USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
 const CREDITS_URL: &str = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 const MAX_RESPONSE_BYTES: u64 = 1024 * 1024;
 const MAX_AUTH_BYTES: u64 = 256 * 1024;
+const MAX_TOKEN_ACTIVITY_BUCKETS: usize = 366;
+const MAX_TOKEN_COUNT: u64 = 9_000_000_000;
 
 struct Auth {
     access_token: String,
@@ -280,6 +282,76 @@ fn find_window<'a>(
     None
 }
 
+fn parse_token_activity(value: &Value) -> Option<TokenActivity> {
+    // Token activity is intentionally opt-in at the parser boundary. Only a
+    // clearly named activity object is accepted; arbitrary numeric fields in
+    // the usage payload must never be mistaken for token counts.
+    let activity = value
+        .get("token_activity")
+        .or_else(|| value.get("tokenActivity"));
+    if activity.is_none() {
+        #[cfg(debug_assertions)]
+        eprintln!("[debug] token_activity: no top-level activity object found in API response");
+        return None;
+    }
+    let activity = activity.unwrap();
+    #[cfg(debug_assertions)]
+    eprintln!("[debug] token_activity: found activity object with keys: {:?}", activity.as_object().map(|obj| obj.keys().collect::<Vec<_>>()));
+    let daily_value = activity
+        .get("daily")
+        .or_else(|| activity.get("daily_activity"))
+        .or_else(|| activity.get("dailyActivity"))
+        .or_else(|| activity.get("items"))
+        .or_else(|| activity.is_array().then_some(activity));
+    if daily_value.is_none() {
+        #[cfg(debug_assertions)]
+        eprintln!("[debug] token_activity: no daily/items array found inside activity object");
+    }
+    let daily_value = daily_value?;
+    let items = daily_value.as_array()?;
+    let mut daily = Vec::new();
+    for item in items.iter().take(MAX_TOKEN_ACTIVITY_BUCKETS) {
+        let Some(start_at) = timestamp(
+            item,
+            &["date", "day", "start_at", "startAt", "period_start", "periodStart"],
+        ) else {
+            continue;
+        };
+        let Some(token_count) = integer(item, &["tokens", "token_count", "tokenCount", "value"]) else {
+            continue;
+        };
+        if start_at.trim().is_empty() || token_count > MAX_TOKEN_COUNT {
+            continue;
+        }
+        daily.push(TokenActivityBucket { start_at, token_count });
+    }
+    if daily.is_empty() {
+        return None;
+    }
+    daily.sort_by(|left, right| left.start_at.cmp(&right.start_at));
+    daily.dedup_by(|left, right| {
+        if left.start_at == right.start_at {
+            right.token_count = right
+                .token_count
+                .saturating_add(left.token_count)
+                .min(MAX_TOKEN_COUNT);
+            true
+        } else {
+            false
+        }
+    });
+    let explicit_total = integer(
+        activity,
+        &["total_tokens", "totalTokens", "total", "cumulative_tokens", "cumulativeTokens"],
+    );
+    let total_tokens = explicit_total.or_else(|| {
+        daily
+            .iter()
+            .try_fold(0_u64, |total, item| total.checked_add(item.token_count))
+    });
+    Some(TokenActivity { daily, total_tokens })
+}
+
 fn safe_http_failure(status: reqwest::StatusCode) -> (&'static str, &'static str) {
     match status.as_u16() {
         401 | 403 => ("signed_out", "Codex login expired. Please sign in again."),
@@ -345,6 +417,8 @@ pub async fn fetch_snapshot(client: &reqwest::Client) -> ProviderSnapshot {
             return ProviderSnapshot::failure("unavailable", "Quota response format has changed.")
         }
     };
+    #[cfg(debug_assertions)]
+    eprintln!("[debug] usage API response keys: {:?}", usage.as_object().map(|obj| obj.keys().collect::<Vec<_>>()));
     let rate_limit = usage
         .get("rate_limit")
         .or_else(|| usage.get("rateLimit"))
@@ -442,6 +516,8 @@ pub async fn fetch_snapshot(client: &reqwest::Client) -> ProviderSnapshot {
         weekly_window,
         reset_credits,
         reset_credit_expires_at,
+        token_activity: crate::token_activity::read_local_activity()
+            .or_else(|| parse_token_activity(&usage)),
         updated_at: chrono::Utc::now().to_rfc3339(),
         status: "ok".into(),
         message: None,
@@ -567,5 +643,64 @@ mod tests {
         .unwrap();
         assert_eq!(weekly.remaining_percent, 98.0);
         assert_eq!(weekly.window_seconds, 604_800);
+    }
+
+    #[test]
+    fn parses_only_explicit_token_activity_buckets() {
+        let value = serde_json::json!({
+            "tokenActivity": {
+                "daily": [
+                    {"date": "2026-09-04", "tokens": 1200},
+                    {"date": "2026-09-05", "tokenCount": 1611000},
+                    {"date": "2026-09-05", "tokenCount": 100}
+                ],
+                "totalTokens": 1612300
+            },
+            "unrelatedCount": 999999
+        });
+        let activity = parse_token_activity(&value).unwrap();
+        assert_eq!(activity.daily.len(), 2);
+        assert_eq!(activity.total_tokens, Some(1612300));
+        assert_eq!(activity.daily[1].token_count, 1611100);
+    }
+
+    #[test]
+    fn quota_only_responses_do_not_create_token_activity() {
+        let value = serde_json::json!({
+            "rate_limit": {
+                "primary_window": {"used_percent": 31, "limit_window_seconds": 18000}
+            },
+            "total_tokens": 1200
+        });
+        assert!(parse_token_activity(&value).is_none());
+    }
+
+    #[test]
+    fn missing_or_empty_daily_buckets_remain_unavailable() {
+        for activity in [
+            Value::Null,
+            serde_json::json!({"total_tokens": 1200}),
+            serde_json::json!({"daily": [], "total_tokens": 1200}),
+            serde_json::json!({"daily": "invalid"}),
+        ] {
+            assert!(parse_token_activity(&serde_json::json!({
+                "token_activity": activity
+            }))
+            .is_none());
+        }
+    }
+
+    #[test]
+    fn ignores_unlabelled_or_oversized_token_values() {
+        let value = serde_json::json!({
+            "usage": 123,
+            "tokenActivity": {
+                "daily": [
+                    {"date": "2026-09-05", "tokens": 9000000001_u64},
+                    {"date": "2026-09-06", "value": "not-a-number"}
+                ]
+            }
+        });
+        assert!(parse_token_activity(&value).is_none());
     }
 }

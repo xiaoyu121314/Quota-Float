@@ -1,6 +1,24 @@
 import type { ProviderSnapshot, QuotaHistoryPoint, WidgetPreferences, WidgetTheme } from "../types";
+import type { ContextMenuAction, ContextMenuState } from "../components/ContextMenu";
 
-const defaultPreferences: WidgetPreferences = { locked: false, alwaysOnTop: true, stayExpanded: false, pinnedProvider: null, autoRotateSeconds: 12, language: "zh-CN", appearance: "light", opacity: 100 };
+const defaultPreferences: WidgetPreferences = { locked: false, alwaysOnTop: true, stayExpanded: false, autoRotateSeconds: 12, language: "zh-CN", appearance: "light", opacity: 100, liquidGlassEnabled: false, customBackgroundImage: null };
+
+function generateMockTokenActivity(): { daily: Array<{ startAt: string; tokenCount: number }>; totalTokens: number } {
+  const daily: Array<{ startAt: string; tokenCount: number }> = [];
+  const now = new Date();
+  let totalTokens = 0;
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const baseCount = Math.floor(Math.random() * 500000) + 50000;
+    const weekday = date.getDay();
+    const multiplier = weekday === 0 || weekday === 6 ? 0.3 : 1;
+    const tokenCount = Math.floor(baseCount * multiplier);
+    totalTokens += tokenCount;
+    daily.push({ startAt: date.toISOString().slice(0, 10), tokenCount });
+  }
+  return { daily, totalTokens };
+}
 
 const mockSnapshot: ProviderSnapshot = {
   provider: "codex",
@@ -10,6 +28,7 @@ const mockSnapshot: ProviderSnapshot = {
   weeklyWindow: { remainingPercent: 42, resetsAt: new Date(Date.now() + 3.2 * 86_400_000).toISOString(), windowSeconds: 604_800 },
   resetCredits: 1,
   resetCreditExpiresAt: [new Date(Date.now() + 9 * 86_400_000).toISOString()],
+  tokenActivity: generateMockTokenActivity(),
   updatedAt: new Date().toISOString(),
   status: "ok",
   message: null,
@@ -94,8 +113,28 @@ export async function setWidgetOpacity(opacity: number): Promise<WidgetPreferenc
   return invoke<WidgetPreferences>("set_widget_opacity", { opacity: normalized });
 }
 
+/**
+ * Save the user-selected image through a dedicated command so the native side
+ * can persist it and notify both the widget and the settings window at once.
+ */
+export async function setWidgetBackgroundImage(image: string | null): Promise<WidgetPreferences> {
+  if (!isTauri()) return { ...defaultPreferences, customBackgroundImage: image };
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<WidgetPreferences>("set_widget_background_image", { customBackgroundImage: image });
+}
+
+/** Persist and broadcast the Liquid Glass preference to both desktop windows. */
+export async function setWidgetLiquidGlass(enabled: boolean): Promise<WidgetPreferences> {
+  if (!isTauri()) return { ...defaultPreferences, liquidGlassEnabled: enabled };
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<WidgetPreferences>("set_widget_liquid_glass", { enabled });
+}
+
 export async function startDragging(): Promise<void> {
   if (!isTauri()) return;
+  // Clicking the card dismisses its menu before dragging. Wait for that
+  // queued restoration so native drag geometry never records the menu size.
+  await widgetTransition;
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   const { invoke } = await import("@tauri-apps/api/core");
   const currentWindow = getCurrentWindow();
@@ -141,15 +180,73 @@ export function setWidgetExpanded(expanded: boolean): Promise<void> {
   });
 }
 
+/** Open the dedicated menu window; the visible widget keeps its native bounds. */
+export async function setWidgetMenuOpen(open: boolean, menu?: ContextMenuState): Promise<void> {
+  if (!isTauri()) return;
+  // Preserve ordering with orb expansion and subsequent collapse, but never
+  // apply CSS compensation to the widget after a native window mutation.
+  await enqueueWidgetTransition(async () => {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const { currentMonitor } = await import("@tauri-apps/api/window");
+    const monitor = open ? await currentMonitor().catch(() => null) : null;
+    const workArea = monitor ? {
+      position: { x: monitor.workArea.position.x, y: monitor.workArea.position.y },
+      size: { width: monitor.workArea.size.width, height: monitor.workArea.size.height },
+    } : null;
+    await invoke("set_widget_menu_open", { open, menu: menu ?? null, workArea });
+  });
+}
+
+/** Menu actions run in the widget so existing preference and quota logic is reused. */
+export async function listenContextMenuActions(handler: (action: ContextMenuAction) => void): Promise<() => void> {
+  if (!isTauri()) return () => undefined;
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<ContextMenuAction>("context-menu-action", ({ payload }) => handler(payload));
+}
+
+export async function hideWidget(): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("hide_widget");
+}
+
+export async function showWidget(): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("show_widget");
+}
+
+export async function isWidgetVisible(): Promise<boolean> {
+  if (!isTauri()) return true;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<boolean>("is_widget_visible");
+}
+
+export async function openSettingsWindow(): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("open_settings_window");
+}
+
+export async function quitApplication(): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("quit_application");
+}
+
+export async function getAutostartStatus(): Promise<boolean> {
+  if (!isTauri()) return false;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<boolean>("get_autostart_status");
+}
+
 export async function listenDesktopEvents(handlers: {
   onPreferences: (value: WidgetPreferences) => void;
   onRefresh: () => void;
-  onUpdate: () => void;
 }): Promise<() => void> {
   if (!isTauri()) return () => undefined;
   const { listen } = await import("@tauri-apps/api/event");
   const unlistenPreferences = await listen<WidgetPreferences>("preferences-changed", (event) => handlers.onPreferences(event.payload));
   const unlistenRefresh = await listen("refresh-requested", handlers.onRefresh);
-  const unlistenUpdate = await listen("update-check-requested", handlers.onUpdate);
-  return () => { unlistenPreferences(); unlistenRefresh(); unlistenUpdate(); };
+  return () => { unlistenPreferences(); unlistenRefresh(); };
 }

@@ -1,0 +1,290 @@
+{
+  "states": [
+    {
+      "label": "健康",
+      "width": 306,
+      "height": 306,
+      "metric": "74%",
+      "overflow": [],
+      "background": true,
+      "color": "rgb(255, 243, 214)"
+    },
+    {
+      "label": "注意",
+      "width": 306,
+      "height": 306,
+      "metric": "35%",
+      "overflow": [],
+      "background": true,
+      "color": "rgb(255, 243, 214)"
+    },
+    {
+      "label": "紧急",
+      "width": 306,
+      "height": 306,
+      "metric": "8%",
+      "overflow": [],
+      "background": true,
+      "color": "rgb(255, 243, 214)"
+    },
+    {
+      "label": "每周",
+      "width": 306,
+      "height": 306,
+      "metric": "42%",
+      "overflow": [],
+      "background": true,
+      "color": "rgb(255, 243, 214)"
+    },
+    {
+      "label": "健康圆形",
+      "width": 72,
+      "height": 72,
+      "metric": "74%",
+      "overflow": [],
+      "background": true,
+      "color": "rgb(255, 243, 214)"
+    },
+    {
+      "label": "注意圆形",
+      "width": 72,
+      "height": 72,
+      "metric": "35%",
+      "overflow": [],
+      "background": true,
+      "color": "rgb(244, 123, 38)"
+    },
+    {
+      "label": "紧急圆形",
+      "width": 72,
+      "height": 72,
+      "metric": "8%",
+      "overflow": [],
+      "background": true,
+      "color": "rgb(240, 92, 59)"
+    },
+    {
+      "label": "每周圆形",
+      "width": 72,
+      "height": 72,
+      "metric": "42%",
+      "overflow": [],
+      "background": true,
+      "color": "rgb(244, 123, 38)"
+    },
+    {
+      "label": "不可用",
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "background": true,
+      "color": "rgb(231, 185, 133)"
+    },
+    {
+      "label": "数据过期",
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "background": true,
+      "color": "rgb(204, 189, 163)"
+    },
+    {
+      "label": "未登录",
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "background": true,
+      "color": "rgb(230, 203, 133)"
+    },
+    {
+      "label": "不可用圆形",
+      "width": 72,
+      "height": 72,
+      "overflow": [],
+      "background": true,
+      "color": "rgb(231, 185, 133)"
+    },
+    {
+      "label": "数据过期圆形",
+      "width": 72,
+      "height": 72,
+      "overflow": [],
+      "background": true,
+      "color": "rgb(204, 189, 163)"
+    },
+    {
+      "label": "未登录圆形",
+      "width": 72,
+      "height": 72,
+      "overflow": [],
+      "background": true,
+      "color": "rgb(230, 203, 133)"
+    }
+  ],
+  "themes": [
+    {
+      "theme": "浅色",
+      "width": 306,
+      "height": 306,
+      "background": "none"
+    },
+    {
+      "theme": "深色",
+      "width": 306,
+      "height": 306,
+      "background": "radial-gradient(circle at 28% 68%, rgb(28, 34, 64) 0px, rgb(28, 34, 64) 18%, rgba(0, 0, 0, 0) 43%), radial-gradient(circle at 82% 82%, rgb(7, 18, 49) 0px, rgb(7, 18, 49) 14%, rgba(0, 0, 0, 0) 34%), radial-gradient(circle at 52% 12%, rgb(39, 43, 89) 0px, rgb(39, 43, 89) 22%, rgba(0, 0, 0, 0) 52%), linear-gradient(145deg, rgb(39, 43, 89), rgb(27, 30, 62) 47%, rgb(7, 18, 49) 83%, rgb(7, 18, 49))"
+    },
+    {
+      "theme": "樱花夜",
+      "width": 306,
+      "height": 306,
+      "background": "linear-gradient(145deg, rgba(48, 35, 46, 0.44), rgba(45, 29, 40, 0.24) 52%, rgba(31, 22, 30, 0.5)), url(\"http://127.0.0.1:1430/assets/sakura-night.png\")"
+    },
+    {
+      "theme": "温暖·日常橙",
+      "width": 306,
+      "height": 306,
+      "background": "linear-gradient(145deg, rgba(255, 240, 220, 0.78), rgba(248, 220, 190, 0.34) 54%, rgba(157, 84, 42, 0.18)), url(\"http://127.0.0.1:1430/assets/warm-daily-orange.png\")"
+    },
+    {
+      "theme": "城市·暮色紫",
+      "width": 306,
+      "height": 306,
+      "background": "linear-gradient(145deg, rgba(45, 31, 105, 0.48), rgba(28, 28, 78, 0.16) 48%, rgba(8, 13, 34, 0.44)), url(\"http://127.0.0.1:1430/assets/city-dusk-purple-v2.png\")"
+    },
+    {
+      "theme": "居家·夜晚",
+      "width": 306,
+      "height": 306,
+      "background": "linear-gradient(145deg, rgba(44, 25, 42, 0.52), rgba(30, 22, 34, 0.22) 48%, rgba(14, 10, 18, 0.54)), url(\"http://127.0.0.1:1430/assets/home-night.png\")"
+    },
+    {
+      "theme": "六道·鸣人",
+      "width": 306,
+      "height": 306,
+      "background": "linear-gradient(0deg, rgba(16, 14, 11, 0.28), rgba(0, 0, 0, 0) 48%), url(\"http://127.0.0.1:1430/assets/naruto-six-paths.png\")"
+    }
+  ],
+  "languages": {
+    "header": "5-hour remaining",
+    "footer": "Weekly remaining · until 9/27 07:36 AM",
+    "reset": "resets in 1h 18m · 9/25, 04:06 AM",
+    "resetBottom": 681.46875,
+    "footerTop": 697.90625
+  },
+  "fixtures": [
+    {
+      "config": {
+        "percent": 0
+      },
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "overlap": false,
+      "background": "linear-gradient(0deg, rgba(16, 14, 11, 0.28), rgba(0, 0, 0, 0) 48%), url(\"http://127.0.0.1:1430/assets/naruto-six-paths.png\")",
+      "metric": "0%"
+    },
+    {
+      "config": {
+        "percent": 100
+      },
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "overlap": false,
+      "background": "linear-gradient(0deg, rgba(16, 14, 11, 0.28), rgba(0, 0, 0, 0) 48%), url(\"http://127.0.0.1:1430/assets/naruto-six-paths.png\")",
+      "metric": "100%"
+    },
+    {
+      "config": {
+        "percent": 74,
+        "showRadar": true
+      },
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "overlap": false,
+      "background": "linear-gradient(rgba(16, 14, 11, 0.86), rgba(16, 14, 11, 0.92)), url(\"http://127.0.0.1:1430/assets/naruto-six-paths.png\")"
+    },
+    {
+      "config": {
+        "percent": 74,
+        "providerCount": 3
+      },
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "overlap": false,
+      "background": "linear-gradient(0deg, rgba(16, 14, 11, 0.28), rgba(0, 0, 0, 0) 48%), url(\"http://127.0.0.1:1430/assets/naruto-six-paths.png\")",
+      "metric": "74%"
+    },
+    {
+      "config": {
+        "percent": 74,
+        "custom": true
+      },
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "overlap": false,
+      "background": "url(\"http://127.0.0.1:1430/assets/home-night.png\")",
+      "metric": "74%"
+    },
+    {
+      "config": {
+        "percent": 74,
+        "glass": true
+      },
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "overlap": false,
+      "background": "linear-gradient(0deg, rgba(16, 14, 11, 0.28), rgba(0, 0, 0, 0) 48%), url(\"http://127.0.0.1:1430/assets/naruto-six-paths.png\")",
+      "metric": "74%"
+    },
+    {
+      "config": {
+        "percent": 74,
+        "custom": true,
+        "glass": true
+      },
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "overlap": false,
+      "background": "linear-gradient(145deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.04) 48%, rgba(255, 255, 255, 0.12)), url(\"http://127.0.0.1:1430/assets/home-night.png\")",
+      "metric": "74%"
+    },
+    {
+      "config": {
+        "percent": 74,
+        "weekly": true
+      },
+      "width": 306,
+      "height": 306,
+      "overflow": [],
+      "overlap": false,
+      "background": "linear-gradient(0deg, rgba(16, 14, 11, 0.28), rgba(0, 0, 0, 0) 48%), url(\"http://127.0.0.1:1430/assets/naruto-six-paths.png\")",
+      "metric": "42%"
+    }
+  ],
+  "menu": {
+    "count": 9,
+    "left": 130,
+    "right": 310,
+    "top": 4,
+    "bottom": 218,
+    "scrollHeight": 282,
+    "clientHeight": 212,
+    "selected": true
+  },
+  "radar": {
+    "visible": true,
+    "text": "配额雷达\n\nCODEX\n5 小时剩余\n74%\n\n1 小时 18 分钟后重置 · 9/25 04:06\n\n24 小时\n7 天\n30 天\n5 小时额度\n74%\n区间变化 -21%\n\n约消耗 4.2% / 小时\n\n周额度\n42%\n区间变化 -20%\n\n约消耗 4% / 小时\n\n按当前节奏可撑到重置\n\nToken 活动\n每日\n每周\n累计\n10月\n11月\n12月\n1月\n2月\n3月\n4月\n5月\n6月\n7月\n8月\n9月\n\n悬停或聚焦格子查看详情",
+    "background": "linear-gradient(rgba(16, 14, 11, 0.86), rgba(16, 14, 11, 0.92)), url(\"http://127.0.0.1:1430/assets/naruto-six-paths.png\")"
+  },
+  "creditPopover": true,
+  "collapse": true,
+  "expand": true,
+  "errors": []
+}

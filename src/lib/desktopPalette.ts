@@ -75,6 +75,32 @@ export const DESKTOP_PALETTES: Record<WidgetTheme, DesktopPalettes> = {
     stale: { "--cool": "#283653", "--glow": "#4D547D", "--warm": "#1A2441", "--progress-start": "#7185B8", "--progress-end": "#AAB9D7", "--linear-warm": "#202C48", "--linear-end": "#172039", "--aurora-opacity": ".48" },
     signed_out: { "--cool": "#3A2B65", "--glow": "#624B80", "--warm": "#241A4A", "--progress-start": "#A78DDF", "--progress-end": "#D3B8F0", "--linear-warm": "#2B204F", "--linear-end": "#19182F", "--aurora-opacity": ".56" },
   },
+  // 冰川极光的六种状态独立维护；青色用于健康额度，琥珀/赭红保留
+  // 低额度提醒的辨识度。背景始终复用同一张冰川图，不随状态替换。
+  glacier: {
+    healthy: { "--cool": "#EEF6F8", "--glow": "#B6DDE4", "--warm": "#CDEEEB", "--progress-start": "#258899", "--progress-end": "#5BAFB5", "--aurora-opacity": ".08" },
+    caution: { "--cool": "#EEF6F8", "--glow": "#D9E6DE", "--warm": "#EBD9B5", "--progress-start": "#95631E", "--progress-end": "#B58B45", "--aurora-opacity": ".1" },
+    critical: { "--cool": "#EEF6F8", "--glow": "#E8D8D7", "--warm": "#EAC8BE", "--progress-start": "#B34D43", "--progress-end": "#C77460", "--aurora-opacity": ".12" },
+    unavailable: { "--cool": "#E6EFF2", "--glow": "#C7DCE1", "--warm": "#CBDDDE", "--progress-start": "#526F7B", "--progress-end": "#7596A1", "--aurora-opacity": ".08" },
+    stale: { "--cool": "#E7EFF2", "--glow": "#D0DDE1", "--warm": "#D6E2E3", "--progress-start": "#5C747E", "--progress-end": "#849BA4", "--aurora-opacity": ".06" },
+    signed_out: { "--cool": "#EAF2F5", "--glow": "#CCDDE9", "--warm": "#D3E7E9", "--progress-start": "#416F8B", "--progress-end": "#729DB2", "--aurora-opacity": ".08" },
+  },
+  yone: {
+    healthy: { "--cool": "#F3BDD5", "--glow": "#ACDCEC", "--warm": "#EAB1D2", "--progress-start": "#B43B78", "--progress-end": "#8466B4", "--aurora-opacity": ".12" },
+    caution: { "--cool": "#EFC0DB", "--glow": "#C6ACE7", "--warm": "#E4A8CB", "--progress-start": "#7754A8", "--progress-end": "#A95895", "--aurora-opacity": ".16" },
+    critical: { "--cool": "#F1B2CB", "--glow": "#F1A6C4", "--warm": "#DF91B4", "--progress-start": "#A82B62", "--progress-end": "#CA558D", "--aurora-opacity": ".2" },
+    unavailable: { "--cool": "#E9BED2", "--glow": "#D6B2D6", "--warm": "#D8A7C2", "--progress-start": "#94627E", "--progress-end": "#A8799D", "--aurora-opacity": ".14" },
+    stale: { "--cool": "#E7CBD8", "--glow": "#C9C2DB", "--warm": "#D5B4C9", "--progress-start": "#796A83", "--progress-end": "#9C87A5", "--aurora-opacity": ".12" },
+    signed_out: { "--cool": "#EDC2DC", "--glow": "#C8B5E8", "--warm": "#DDAFCE", "--progress-start": "#84609E", "--progress-end": "#AE6C9D", "--aurora-opacity": ".14" },
+  },
+  naruto: {
+    healthy: { "--cool": "#171516", "--glow": "#6B4115", "--warm": "#241809", "--progress-start": "#FF982F", "--progress-end": "#FFD45A", "--aurora-opacity": ".18" },
+    caution: { "--cool": "#19140F", "--glow": "#7A3F16", "--warm": "#2B190D", "--progress-start": "#F47B26", "--progress-end": "#FFAD46", "--aurora-opacity": ".2" },
+    critical: { "--cool": "#1C1210", "--glow": "#842D1A", "--warm": "#30150D", "--progress-start": "#F05C3B", "--progress-end": "#FF8550", "--aurora-opacity": ".22" },
+    unavailable: { "--cool": "#191512", "--glow": "#654128", "--warm": "#281A13", "--progress-start": "#CE9160", "--progress-end": "#E7B985", "--aurora-opacity": ".14" },
+    stale: { "--cool": "#181615", "--glow": "#494035", "--warm": "#211C17", "--progress-start": "#A69880", "--progress-end": "#CCBDA3", "--aurora-opacity": ".12" },
+    signed_out: { "--cool": "#1B160E", "--glow": "#615022", "--warm": "#28200F", "--progress-start": "#C5A34F", "--progress-end": "#E6CB85", "--aurora-opacity": ".14" },
+  },
   // Home Night uses the indoor reference as its visual anchor. The warmer
   // plum status records keep quota changes legible without flattening the
   // lamp, window, cat, and mug into a generic dark-mode surface.

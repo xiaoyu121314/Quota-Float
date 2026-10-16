@@ -66,6 +66,42 @@ describe("desktop palettes", () => {
     expect(DESKTOP_PALETTES.city.healthy).not.toEqual(DESKTOP_PALETTES.dark.healthy);
   });
 
+  it("keeps Naruto independent with gold, orange and vermilion quota states", () => {
+    expect(Object.keys(DESKTOP_PALETTES.naruto)).toEqual(["healthy", "caution", "critical", "unavailable", "stale", "signed_out"]);
+    expect(DESKTOP_PALETTES.naruto.healthy).toMatchObject({
+      "--cool": "#171516",
+      "--progress-start": "#FF982F",
+      "--progress-end": "#FFD45A",
+    });
+    expect(DESKTOP_PALETTES.naruto.caution["--progress-start"]).toBe("#F47B26");
+    expect(DESKTOP_PALETTES.naruto.critical["--progress-start"]).toBe("#F05C3B");
+    for (const palette of Object.values(DESKTOP_PALETTES.naruto)) {
+      expect(palette).not.toEqual(DESKTOP_PALETTES.dark.healthy);
+      expect(palette).not.toEqual(DESKTOP_PALETTES.warm.healthy);
+      for (const key of ["--cool", "--glow", "--warm", "--progress-start", "--progress-end"] as const) {
+        expect(palette[key]).toMatch(/^#[0-9a-f]{6}$/i);
+      }
+    }
+  });
+
+  it("keeps Spirit Blossom Yone pink-led with independent state colors", () => {
+    expect(Object.keys(DESKTOP_PALETTES.yone)).toEqual(["healthy", "caution", "critical", "unavailable", "stale", "signed_out"]);
+    expect(DESKTOP_PALETTES.yone.healthy).toMatchObject({
+      "--cool": "#F3BDD5",
+      "--progress-start": "#B43B78",
+      "--progress-end": "#8466B4",
+    });
+    expect(DESKTOP_PALETTES.yone.caution["--progress-start"]).toBe("#7754A8");
+    expect(DESKTOP_PALETTES.yone.critical["--progress-start"]).toBe("#A82B62");
+    for (const palette of Object.values(DESKTOP_PALETTES.yone)) {
+      expect(palette).not.toEqual(DESKTOP_PALETTES.sakura.healthy);
+      expect(palette).not.toEqual(DESKTOP_PALETTES.city.healthy);
+      for (const key of ["--cool", "--glow", "--warm", "--progress-start", "--progress-end"] as const) {
+        expect(palette[key]).toMatch(/^#[0-9a-f]{6}$/i);
+      }
+    }
+  });
+
   it("keeps Home Night independent and plum-led", () => {
     expect(DESKTOP_PALETTES.home.healthy).toMatchObject({
       "--cool": "#302036",

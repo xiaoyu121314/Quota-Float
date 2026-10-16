@@ -12,7 +12,6 @@ interface Props {
   providerCount: number;
   onPrevious: () => void;
   onNext: () => void;
-  onTogglePin: () => void;
   onLock: () => void;
   onToggleStayExpanded: () => void;
   onDrag: () => void;
@@ -26,7 +25,10 @@ interface Props {
   onToggleRadar?: () => void;
   onClearHistory?: () => Promise<void>;
   theme?: WidgetTheme;
+  customBackground?: boolean;
+  liquidGlassEnabled?: boolean;
   style?: CSSProperties;
+  onContextMenu?: (event: React.MouseEvent) => void;
 }
 
 function StatusIcon({ status, expired = false }: { status: ProviderSnapshot["status"]; expired?: boolean }) {
@@ -55,7 +57,6 @@ export const QuotaCard = memo(function QuotaCard({
   providerCount,
   onPrevious,
   onNext,
-  onTogglePin: _onTogglePin,
   onLock,
   onToggleStayExpanded,
   onDrag,
@@ -69,7 +70,10 @@ export const QuotaCard = memo(function QuotaCard({
   onToggleRadar,
   onClearHistory,
   theme,
+  customBackground = false,
+  liquidGlassEnabled = false,
   style,
+  onContextMenu,
 }: Props) {
   const [showCreditTip, setShowCreditTip] = useState(initialShowCreditTip);
   const creditPopoverRef = useRef<HTMLDivElement>(null);
@@ -139,10 +143,11 @@ export const QuotaCard = memo(function QuotaCard({
 
   return (
     <main
-      className={`quota-card quota-card--${snapshot.status} quota-card--${tier}${theme ? ` quota-card--theme-${theme}` : ""}`}
+      className={`quota-card quota-card--${snapshot.status} quota-card--${tier}${theme ? ` quota-card--theme-${theme}` : ""}${customBackground ? " quota-card--custom-background" : ""}${liquidGlassEnabled ? " quota-card--liquid-glass" : ""}`}
       style={style}
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
+      onContextMenu={onContextMenu}
       onClickCapture={(event) => {
         if (showCreditTip && !(event.target instanceof Node && creditPopoverRef.current?.contains(event.target))) setShowCreditTip(false);
       }}
@@ -154,7 +159,7 @@ export const QuotaCard = memo(function QuotaCard({
       <header className="card-header">
         <div>
           <p className="eyebrow">{`${snapshot.displayName} · ${snapshot.plan ?? t.accountFallback}`}</p>
-          {snapshot.status !== "stale" ? <p className="updated">{displayingWeeklyAsPrimary ? t.weeklyShortRemaining : t.shortRemaining}</p> : null}
+          {!showRadar && snapshot.status !== "stale" ? <p className="updated">{displayingWeeklyAsPrimary ? t.weeklyShortRemaining : t.shortRemaining}</p> : null}
         </div>
         {!preferences.locked ? (
           <nav className="card-actions" aria-label={t.controls} onMouseDown={(event) => event.stopPropagation()}>
@@ -219,7 +224,7 @@ export const QuotaCard = memo(function QuotaCard({
   );
 });
 
-export const QuotaOrb = memo(function QuotaOrb({ snapshot, onDrag, onHover, language = "zh-CN", theme, style }: Pick<Props, "snapshot" | "onDrag" | "onHover" | "theme" | "style"> & { language?: Language }) {
+export const QuotaOrb = memo(function QuotaOrb({ snapshot, onDrag, onHover, language = "zh-CN", theme, customBackground = false, liquidGlassEnabled = false, style, onContextMenu }: Pick<Props, "snapshot" | "onDrag" | "onHover" | "theme" | "customBackground" | "liquidGlassEnabled" | "style" | "onContextMenu"> & { language?: Language }) {
   const [idle, setIdle] = useState(false);
   const idleTimer = useRef<number | null>(null);
   const activeLanguage = normalizeLanguage(language);
@@ -245,14 +250,23 @@ export const QuotaOrb = memo(function QuotaOrb({ snapshot, onDrag, onHover, lang
 
   return (
     <main
-      className={`quota-orb quota-card--${snapshot.status} quota-card--${tier}${theme ? ` quota-orb--theme-${theme}` : ""}${displayingWeeklyAsPrimary ? " quota-orb--weekly" : ""}${idle ? " quota-orb--idle" : ""}`}
+      className={`quota-orb quota-card--${snapshot.status} quota-card--${tier}${theme ? ` quota-orb--theme-${theme}` : ""}${customBackground ? " quota-orb--custom-background" : ""}${liquidGlassEnabled ? " quota-orb--liquid-glass" : ""}${displayingWeeklyAsPrimary ? " quota-orb--weekly" : ""}${idle ? " quota-orb--idle" : ""}`}
       style={style}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => onHover(false)}
+      onContextMenu={onContextMenu}
       onMouseDown={(event) => { if (event.button === 0) void onDrag(); }}
       aria-label={available ? (displayingWeeklyAsPrimary ? t.weeklyAvailableLabel(displayPercent!) : t.availableLabel(displayPercent!)) : localizedBackendMessage(snapshot.message, activeLanguage) ?? t.unavailableStatus}
     >
       <div className="aurora" aria-hidden="true" />
+      {/* 永恩与冰川极光复用同一额度环；弧长使用已限界的主额度，
+          缺少短周期时自然跟随周额度，异常数据不绘制误导性的进度。 */}
+      {(theme === "yone" || theme === "glacier") && available ? (
+        <svg className="quota-ring" viewBox="0 0 72 72" aria-hidden="true">
+          <circle className="quota-ring__track" cx="36" cy="36" r="31" />
+          <circle className="quota-ring__value" cx="36" cy="36" r="31" pathLength="100" strokeDasharray={`${displayPercent} 100`} transform="rotate(-90 36 36)" />
+        </svg>
+      ) : null}
       {available && displayingWeeklyAsPrimary ? (
         <span className="orb-weekly-badge" aria-hidden="true">
           <svg viewBox="0 0 55 17" fill="none" xmlns="http://www.w3.org/2000/svg">

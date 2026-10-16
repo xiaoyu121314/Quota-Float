@@ -1,6 +1,7 @@
 mod codex;
 mod history;
 mod models;
+mod token_activity;
 
 use std::{
     fs,
@@ -10,31 +11,83 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(target_os = "windows")]
+use std::path::Path;
+
 use chrono::Utc;
 use history::{QuotaHistoryPoint, QuotaHistoryStore};
-use models::{ProviderSnapshot, WidgetPreferences};
 #[cfg(debug_assertions)]
 use models::UsageWindow;
-use serde::Deserialize;
+use models::{is_valid_custom_background_image, ProviderSnapshot, WidgetPreferences};
+use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, State,
     WindowEvent,
 };
-use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_autostart::MacosLauncher;
+#[cfg(not(target_os = "windows"))]
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_window_state::Builder as WindowStateBuilder;
+
+#[cfg(target_os = "windows")]
+use winreg::{
+    enums::{HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE, RegType::REG_BINARY},
+    RegKey, RegValue,
+};
 
 // These are the light-theme visual dimensions. They deliberately do not vary
 // by appearance: a theme changes colours only, while the native window keeps
 // the same footprint as its CSS content.
 const COLLAPSED_LOGICAL_SIZE: f64 = 72.0;
 const EXPANDED_LOGICAL_SIZE: f64 = 306.0;
+// Menus need their own transparent desktop space; the card stays 306px wide.
+const MENU_SURFACE_WIDTH: f64 = 760.0;
+const MENU_SURFACE_HEIGHT: f64 = 560.0;
 const SETTINGS_WINDOW_LOGICAL_SIZE: f64 = 440.0;
 const EDGE_SAFE_INSET_LOGICAL: f64 = 4.0;
 const SNAP_THRESHOLD_LOGICAL: f64 = 24.0;
 const POSITION_EPSILON: u32 = 2;
+
+#[cfg(target_os = "windows")]
+const AUTOSTART_WITH_CODEX_FLAG: &str = "--start-with-codex";
+
+#[cfg(target_os = "windows")]
+const FOLLOW_CODEX_FLAG: &str = "--follow-codex";
+
+/// Image name of the Codex desktop client process inside the WindowsApps
+/// package. Compared case-insensitively. Not platform-gated so the pure
+/// matchers and their tests compile on every target.
+const CODEX_PROCESS_IMAGE_NAME: &str = "chatgpt.exe";
+
+/// Version-independent install prefix of the Codex desktop package under
+/// WindowsApps. Distinguishes the Codex client from the plain ChatGPT desktop
+/// app and survives Codex package updates.
+const CODEX_IMAGE_PATH_PREFIX: &str = r"C:\Program Files\WindowsApps\OpenAI.Codex_";
+
+/// Registry value name used for the Windows startup entry. Matches the
+/// `productName` in tauri.conf.json.
+#[cfg(target_os = "windows")]
+const WINDOWS_AUTOSTART_VALUE_NAME: &str = "Quota Float";
+
+#[cfg(target_os = "windows")]
+const CODEX_POLL_INTERVAL: Duration = Duration::from_secs(1);
+
+#[cfg(target_os = "windows")]
+const FOLLOW_EXIT_CONFIRMATIONS: u32 = 2;
+
+#[cfg(target_os = "windows")]
+const WINDOWS_RUN_REGISTRY_KEY: &str = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run";
+
+#[cfg(target_os = "windows")]
+const WINDOWS_STARTUP_APPROVED_REGISTRY_KEY: &str =
+    "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
+
+#[cfg(target_os = "windows")]
+const WINDOWS_STARTUP_APPROVED_ENABLED_VALUE: [u8; 12] = [
+    0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
 
 #[derive(Clone, Copy)]
 enum HorizontalDock {
@@ -109,17 +162,10 @@ struct AppState {
     #[cfg(debug_assertions)]
     simulate_short_window_for_testing: Mutex<bool>,
     geometry: Mutex<Option<WidgetGeometryState>>,
+    context_menu: Mutex<Option<ContextMenuPayload>>,
     drag_mode: Mutex<Option<WidgetMode>>,
-    update_available: Mutex<bool>,
-}
-
-fn update_menu_label(language: &str, update_available: bool) -> &'static str {
-    match (language == "en", update_available) {
-        (true, true) => "🟢 Check for updates",
-        (false, true) => "🟢 检查更新",
-        (true, false) => "Check for updates",
-        (false, false) => "检查更新",
-    }
+    #[cfg(target_os = "windows")]
+    follow_watcher: Mutex<Option<std::process::Child>>,
 }
 
 fn apply_short_window_test_override(
@@ -552,6 +598,100 @@ fn infer_mode(rect: WidgetRect, collapsed_size: PhysicalSize<u32>) -> WidgetMode
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ContextMenuPayload {
+    x: f64,
+    y: f64,
+    request_id: u64,
+    language: String,
+    appearance: String,
+    locked: bool,
+    autostart: bool,
+}
+
+/// Position a separate menu surface around the widget inside the work area.
+/// This rectangle belongs exclusively to the popup: opening a menu must never
+/// resize or reposition the visible card, even for one intermediate frame.
+fn menu_surface_rect(original: WidgetRect, scale: f64, bounds: WorkAreaPayload) -> WidgetRect {
+    let width = logical_to_physical(MENU_SURFACE_WIDTH, scale).min(bounds.size.width);
+    let height = logical_to_physical(MENU_SURFACE_HEIGHT, scale).min(bounds.size.height);
+    let centered_x = original.position.x - (width.saturating_sub(original.size.width) / 2) as i32;
+    let centered_y = original.position.y - (height.saturating_sub(original.size.height) / 2) as i32;
+    WidgetRect {
+        position: PhysicalPosition::new(
+            centered_x.clamp(bounds.position.x, bounds.position.x + (bounds.size.width - width) as i32),
+            centered_y.clamp(bounds.position.y, bounds.position.y + (bounds.size.height - height) as i32),
+        ),
+        size: PhysicalSize::new(width, height),
+    }
+}
+
+#[tauri::command]
+fn set_widget_menu_open(
+    open: bool,
+    menu: Option<ContextMenuPayload>,
+    work_area: Option<WorkAreaPayload>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let popup = app.get_webview_window("context-menu").ok_or("context menu window missing")?;
+    if !open {
+        let mut current = state.context_menu.lock().map_err(|_| "menu state unavailable")?;
+        if let Some(request) = menu {
+            if current.as_ref().map(|value| value.request_id) != Some(request.request_id) {
+                return Ok(());
+            }
+        }
+        let closed = current.take();
+        drop(current);
+        popup.hide().map_err(|error| error.to_string())?;
+        if let Some(closed) = closed {
+            let _ = app.emit_to("widget", "context-menu-action", serde_json::json!({
+                "action": "close", "requestId": closed.request_id,
+            }));
+        }
+        return Ok(());
+    }
+    let window = app.get_webview_window("widget").ok_or("widget window missing")?;
+    let current = current_widget_rect(&window)?;
+    let (monitor, scale) = monitor_and_scale(&window)?;
+    let bounds = work_area.or_else(|| monitor.map(|monitor| WorkAreaPayload {
+        position: WorkAreaPoint { x: monitor.position().x, y: monitor.position().y },
+        size: WorkAreaSize { width: monitor.size().width, height: monitor.size().height },
+    })).ok_or("menu monitor unavailable")?;
+    let surface = menu_surface_rect(current, scale, bounds);
+    let cursor = window.cursor_position().map_err(|error| error.to_string())?;
+    let mut payload = menu.ok_or("context menu state missing")?;
+    payload.x = (cursor.x - surface.position.x as f64) / scale;
+    payload.y = (cursor.y - surface.position.y as f64) / scale;
+    // Prepare the popup while hidden. Its WebView acknowledges a rendered
+    // frame before show_context_menu makes it visible, avoiding blank flashes.
+    popup.hide().map_err(|error| error.to_string())?;
+    popup.set_size(surface.size).map_err(|error| error.to_string())?;
+    popup.set_position(surface.position).map_err(|error| error.to_string())?;
+    *state.context_menu.lock().map_err(|_| "menu state unavailable")? = Some(payload.clone());
+    app.emit_to("context-menu", "context-menu-open", payload).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_context_menu(state: State<'_, AppState>) -> Result<Option<ContextMenuPayload>, String> {
+    Ok(state.context_menu.lock().map_err(|_| "menu state unavailable")?.clone())
+}
+
+#[tauri::command]
+fn show_context_menu(request_id: u64, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    // A late paint acknowledgement must not resurrect a dismissed menu.
+    let menu = state.context_menu.lock().map_err(|_| "menu state unavailable")?;
+    if menu.as_ref().map(|value| value.request_id) != Some(request_id) {
+        return Ok(());
+    }
+    let popup = app.get_webview_window("context-menu").ok_or("context menu window missing")?;
+    popup.show().map_err(|error| error.to_string())?;
+    popup.set_focus().map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 fn expand_widget(
     work_area: Option<WorkAreaPayload>,
@@ -636,6 +776,36 @@ mod geometry_tests {
     }
 
     #[test]
+    fn menu_surface_preserves_room_at_screen_edges_and_negative_origins() {
+        let bounds = WorkAreaPayload {
+            position: WorkAreaPoint { x: -1920, y: 0 },
+            size: WorkAreaSize { width: 1920, height: 1040 },
+        };
+        for original in [rect(-1920, 0, 314), rect(-314, 726, 314)] {
+            let surface = menu_surface_rect(original, 1.0, bounds);
+            assert_eq!(surface.size, PhysicalSize::new(760, 560));
+            assert!(surface.position.x <= original.position.x);
+            assert!(surface.position.y <= original.position.y);
+            assert!(surface.position.x >= -1920);
+            assert!(surface.position.x + surface.size.width as i32 <= 0);
+            assert!(surface.position.y + surface.size.height as i32 <= 1040);
+            assert!(surface.position.x + surface.size.width as i32 >= original.position.x + 314);
+            assert!(surface.position.y + surface.size.height as i32 >= original.position.y + 314);
+        }
+    }
+
+    #[test]
+    fn menu_surface_scales_to_dpi_and_respects_small_work_areas() {
+        let bounds = WorkAreaPayload {
+            position: WorkAreaPoint { x: 0, y: 0 },
+            size: WorkAreaSize { width: 1000, height: 700 },
+        };
+        let surface = menu_surface_rect(rect(300, 200, 471), 1.5, bounds);
+        assert_eq!(surface.size, PhysicalSize::new(1000, 700));
+        assert_eq!(surface.position, PhysicalPosition::new(0, 0));
+    }
+
+    #[test]
     fn expansion_stays_above_a_bottom_taskbar() {
         let position = expanded_position_in_bounds(
             rect(1844, 964, 80),
@@ -678,6 +848,21 @@ mod geometry_tests {
             4,
         );
         assert_eq!(position, PhysicalPosition::new(1516, 666));
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod autostart_tests {
+    use super::*;
+
+    #[test]
+    fn windows_startup_command_quotes_paths_with_spaces() {
+        let executable = Path::new(r"C:\Program Files\Quota Float\quota-float.exe");
+
+        assert_eq!(
+            windows_autostart_command(executable),
+            r#""C:\Program Files\Quota Float\quota-float.exe" --start-with-codex"#
+        );
     }
 }
 
@@ -908,6 +1093,53 @@ fn set_widget_opacity(
     Ok(normalized)
 }
 
+#[tauri::command]
+fn set_widget_liquid_glass(
+    enabled: bool,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<WidgetPreferences, String> {
+    let mut next = preferences_lock(&state).clone();
+    next.liquid_glass_enabled = enabled;
+    let normalized = next.normalized();
+    persist_preferences(&state.preferences_path, &normalized)?;
+    *preferences_lock(&state) = normalized.clone();
+
+    // The settings page and widget run in separate WebViews, so broadcast the
+    // saved preference to both windows for immediate and consistent rendering.
+    let _ = app.emit_to("widget", "preferences-changed", normalized.clone());
+    let _ = app.emit_to("settings", "preferences-changed", normalized.clone());
+    Ok(normalized)
+}
+
+#[tauri::command]
+fn set_widget_background_image(
+    custom_background_image: Option<String>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<WidgetPreferences, String> {
+    if custom_background_image
+        .as_deref()
+        .map(|value| !is_valid_custom_background_image(value))
+        .unwrap_or(false)
+    {
+        return Err("unsupported or oversized background image".to_string());
+    }
+
+    let mut next = preferences_lock(&state).clone();
+    next.custom_background_image = custom_background_image;
+    let normalized = next.normalized();
+    persist_preferences(&state.preferences_path, &normalized)?;
+    *preferences_lock(&state) = normalized.clone();
+
+    // The settings page and the widget are separate WebViews. Broadcasting the
+    // complete normalized record keeps a newly selected or cleared image in
+    // sync immediately, without requiring a restart or a second read command.
+    let _ = app.emit_to("widget", "preferences-changed", normalized.clone());
+    let _ = app.emit_to("settings", "preferences-changed", normalized.clone());
+    Ok(normalized)
+}
+
 fn apply_lock(app: &AppHandle, locked: bool) -> Result<(), String> {
     let window = app
         .get_webview_window("widget")
@@ -930,6 +1162,36 @@ fn normalize_settings_window_size(window: &tauri::WebviewWindow) -> Result<(), S
         .map_err(|error| format!("failed to size settings window: {error}"))
 }
 
+/// Refreshes the visible settings WebView after Windows updates the widget's
+/// click-through window styles. The style change can leave the sibling
+/// WebView's native child surface clipped until it receives a fresh `WM_SIZE`;
+/// changing the height by one logical pixel and restoring it forces that
+/// resize without changing the intended settings-window dimensions.
+#[cfg(target_os = "windows")]
+fn refresh_settings_window_after_click_through(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("settings") else {
+        return;
+    };
+    if !window.is_visible().unwrap_or(false) {
+        return;
+    }
+
+    let expanded_height = SETTINGS_WINDOW_LOGICAL_SIZE + 1.0;
+    if let Err(error) = window.set_size(LogicalSize::new(
+        SETTINGS_WINDOW_LOGICAL_SIZE,
+        expanded_height,
+    )) {
+        eprintln!("failed to refresh settings WebView size: {error}");
+        return;
+    }
+    if let Err(error) = window.set_size(LogicalSize::new(
+        SETTINGS_WINDOW_LOGICAL_SIZE,
+        SETTINGS_WINDOW_LOGICAL_SIZE,
+    )) {
+        eprintln!("failed to restore settings WebView size: {error}");
+    }
+}
+
 #[tauri::command]
 fn set_widget_locked(
     locked: bool,
@@ -948,6 +1210,9 @@ fn set_widget_locked(
         let _ = persist_preferences(&state.preferences_path, &previous);
         return Err(error);
     }
+    #[cfg(target_os = "windows")]
+    refresh_settings_window_after_click_through(&app);
+
     *state
         .preferences
         .lock()
@@ -1009,12 +1274,496 @@ fn sync_widget_appearance(_appearance: String, app: AppHandle, state: State<'_, 
         .map_err(|_| "failed to resize widget for appearance".to_string())
 }
 
+#[tauri::command]
+fn hide_widget(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("widget")
+        .ok_or_else(|| "widget window missing".to_string())?;
+    window.hide().map_err(|_| "failed to hide widget".to_string())
+}
+
+#[tauri::command]
+fn show_widget(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("widget")
+        .ok_or_else(|| "widget window missing".to_string())?;
+    window.show().map_err(|_| "failed to show widget".to_string())?;
+    window.set_focus().map_err(|_| "failed to focus widget".to_string())
+}
+
+#[tauri::command]
+fn is_widget_visible(app: AppHandle) -> Result<bool, String> {
+    let window = app
+        .get_webview_window("widget")
+        .ok_or_else(|| "widget window missing".to_string())?;
+    window.is_visible().map_err(|_| "failed to check visibility".to_string())
+}
+
+#[tauri::command]
+fn open_settings_window(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("settings")
+        .ok_or_else(|| "settings window missing".to_string())?;
+    let _ = normalize_settings_window_size(&window);
+    window.show().map_err(|_| "failed to show settings".to_string())?;
+    window.set_focus().map_err(|_| "failed to focus settings".to_string())
+}
+
+#[tauri::command]
+fn quit_application(app: AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
+fn get_autostart_status(app: AppHandle) -> bool {
+    autostart_is_enabled(&app)
+}
+
+/// Writes the Windows login-start entry used by the CodeX companion mode.
+///
+/// The bundled autostart plugin delegates to `auto-launch`, whose Windows
+/// implementation writes executable paths without surrounding quotes. Quota
+/// Float is commonly installed under a path containing spaces, so Windows can
+/// otherwise interpret only the first path segment as the executable and
+/// silently skip the startup entry. Writing the value directly also lets us
+/// create the per-user Run key when it is missing and mark the entry enabled in
+/// Task Manager's StartupApproved state.
+#[cfg(target_os = "windows")]
+fn repair_windows_autostart_entry(app: &AppHandle) -> Result<(), String> {
+    let current_exe = std::env::current_exe()
+        .map_err(|error| format!("failed to resolve Quota Float executable: {error}"))?;
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (run_key, _) = hkcu
+        .create_subkey(WINDOWS_RUN_REGISTRY_KEY)
+        .map_err(|error| format!("failed to open Windows startup registry: {error}"))?;
+    let command = windows_autostart_command(&current_exe);
+    run_key
+        .set_value(app.package_info().name.as_str(), &command)
+        .map_err(|error| format!("failed to save Windows startup command: {error}"))?;
+
+    let (startup_approved_key, _) = hkcu
+        .create_subkey(WINDOWS_STARTUP_APPROVED_REGISTRY_KEY)
+        .map_err(|error| format!("failed to open StartupApproved registry: {error}"))?;
+    startup_approved_key
+        .set_raw_value(
+            app.package_info().name.as_str(),
+            &RegValue {
+                vtype: REG_BINARY,
+                bytes: WINDOWS_STARTUP_APPROVED_ENABLED_VALUE.to_vec(),
+            },
+        )
+        .map_err(|error| format!("failed to enable startup entry in Task Manager: {error}"))
+}
+
+/// Reads the same two Windows locations used by the startup registration so
+/// the tray checkmark reflects both the Run value and a disabled Task Manager
+/// startup entry.
+#[cfg(target_os = "windows")]
+fn windows_autostart_is_enabled(app: &AppHandle) -> bool {
+    windows_autostart_entry_is_enabled(app.package_info().name.as_str())
+}
+
+/// Core of the enablement check, parameterized by the registry value name so
+/// the tray, the repair path and the login watcher all test the same entry.
+#[cfg(target_os = "windows")]
+fn windows_autostart_entry_is_enabled(value_name: &str) -> bool {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let Ok(run_key) = hkcu.open_subkey_with_flags(WINDOWS_RUN_REGISTRY_KEY, KEY_READ) else {
+        return false;
+    };
+    if run_key.get_value::<String, _>(value_name).is_err() {
+        return false;
+    }
+
+    let Ok(startup_approved_key) = hkcu.open_subkey_with_flags(
+        WINDOWS_STARTUP_APPROVED_REGISTRY_KEY,
+        KEY_READ,
+    ) else {
+        return true;
+    };
+    let Ok(raw_value) = startup_approved_key.get_raw_value(value_name) else {
+        return true;
+    };
+    raw_value
+        .bytes
+        .len()
+        .checked_sub(8)
+        .map(|start| raw_value.bytes[start..].iter().all(|byte| *byte == 0))
+        .unwrap_or(true)
+}
+
+/// Disables the Windows companion entry without treating an already-removed
+/// value as an error. The separate StartupApproved value is removed as well,
+/// preventing stale Task Manager state from affecting a later enable action.
+#[cfg(target_os = "windows")]
+fn disable_windows_autostart_entry(app: &AppHandle) -> Result<(), String> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    if let Ok(run_key) = hkcu.open_subkey_with_flags(WINDOWS_RUN_REGISTRY_KEY, KEY_SET_VALUE) {
+        match run_key.delete_value(app.package_info().name.as_str()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!("failed to disable Windows startup: {error}"));
+            }
+        }
+    }
+    if let Ok(startup_approved_key) =
+        hkcu.open_subkey_with_flags(WINDOWS_STARTUP_APPROVED_REGISTRY_KEY, KEY_SET_VALUE)
+    {
+        let _ = startup_approved_key.delete_value(app.package_info().name.as_str());
+    }
+    Ok(())
+}
+
+/// Builds a quoted Windows Run command that starts Quota Float in companion
+/// mode. Keeping this formatting in one function prevents a path containing
+/// spaces from being reintroduced when the startup setting is toggled again.
+#[cfg(target_os = "windows")]
+fn windows_autostart_command(executable: &Path) -> String {
+    format!("\"{}\" {AUTOSTART_WITH_CODEX_FLAG}", executable.display())
+}
+
+/// Decision for the login-mode watcher on a single poll tick. The widget is
+/// spawned only on a Codex appearance (including "already running when the
+/// watcher starts"); while Codex keeps running the watcher never respawns, so
+/// a manually closed widget stays closed until Codex restarts.
+enum WatcherAction {
+    SpawnWidget,
+    KeepWaiting,
+}
+
+fn watcher_action(previous_running: Option<bool>, running: bool) -> WatcherAction {
+    if running && previous_running != Some(true) {
+        WatcherAction::SpawnWidget
+    } else {
+        WatcherAction::KeepWaiting
+    }
+}
+
+fn image_name_is_codex(name: &str) -> bool {
+    name.eq_ignore_ascii_case(CODEX_PROCESS_IMAGE_NAME)
+}
+
+/// A queried image path must live inside the Codex WindowsApps package. A
+/// missing path (query failed) degrades to name-only matching and passes.
+fn image_path_matches_codex(path: Option<&str>) -> bool {
+    match path {
+        None => true,
+        Some(path) => path.len() >= CODEX_IMAGE_PATH_PREFIX.len()
+            && path[..CODEX_IMAGE_PATH_PREFIX.len()].eq_ignore_ascii_case(CODEX_IMAGE_PATH_PREFIX),
+    }
+}
+
+#[cfg(test)]
+mod codex_follow_tests {
+    use super::*;
+
+    #[test]
+    fn watcher_spawns_on_codex_appearance() {
+        assert!(matches!(
+            watcher_action(Some(false), true),
+            WatcherAction::SpawnWidget
+        ));
+        assert!(matches!(
+            watcher_action(None, true),
+            WatcherAction::SpawnWidget
+        ));
+    }
+
+    #[test]
+    fn watcher_keeps_waiting_while_codex_stays_running() {
+        assert!(matches!(
+            watcher_action(Some(true), true),
+            WatcherAction::KeepWaiting
+        ));
+    }
+
+    #[test]
+    fn watcher_never_spawns_while_codex_is_absent() {
+        assert!(matches!(
+            watcher_action(Some(false), false),
+            WatcherAction::KeepWaiting
+        ));
+        assert!(matches!(
+            watcher_action(Some(true), false),
+            WatcherAction::KeepWaiting
+        ));
+        assert!(matches!(
+            watcher_action(None, false),
+            WatcherAction::KeepWaiting
+        ));
+    }
+
+    #[test]
+    fn codex_image_name_matches_case_insensitively() {
+        assert!(image_name_is_codex("chatgpt.exe"));
+        assert!(image_name_is_codex("ChatGPT.EXE"));
+        assert!(!image_name_is_codex("chatgpt2.exe"));
+        assert!(!image_name_is_codex("explorer.exe"));
+    }
+
+    #[test]
+    fn codex_image_path_requires_windowsapps_package_prefix() {
+        assert!(image_path_matches_codex(Some(
+            r"C:\Program Files\WindowsApps\OpenAI.Codex_26.908.9136.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"
+        )));
+        assert!(image_path_matches_codex(Some(
+            r"c:\program files\windowsapps\openai.codex_26.908.9136.0_x64__2p2nqsd0c76g0\app\chatgpt.exe"
+        )));
+        assert!(!image_path_matches_codex(Some(
+            r"C:\Program Files\WindowsApps\OpenAI.ChatGPT-Desktop_1.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"
+        )));
+        assert!(!image_path_matches_codex(Some(r"C:\Program Files\ChatGPT.exe")));
+        assert!(!image_path_matches_codex(Some(r"C:\Program Files")));
+        assert!(image_path_matches_codex(None));
+    }
+}
+
+/// Samples whether a Codex desktop process is currently running.
+///
+/// Returns `None` when the process snapshot itself could not be taken; callers
+/// treat that as "no information" and must not act on it, so a transient
+/// snapshot failure can never spuriously spawn or kill the widget.
+#[cfg(target_os = "windows")]
+fn codex_running_state() -> Option<bool> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        TH32CS_SNAPPROCESS,
+    };
+
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }.ok()?;
+    let mut entry = PROCESSENTRY32W {
+        dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+        ..Default::default()
+    };
+    let mut found = false;
+    unsafe {
+        if Process32FirstW(snapshot, &mut entry).is_ok() {
+            loop {
+                let length = entry
+                    .szExeFile
+                    .iter()
+                    .position(|unit| *unit == 0)
+                    .unwrap_or(entry.szExeFile.len());
+                let name = String::from_utf16_lossy(&entry.szExeFile[..length]);
+                if image_name_is_codex(&name)
+                    && image_path_matches_codex(process_image_path(entry.th32ProcessID).as_deref())
+                {
+                    found = true;
+                    break;
+                }
+                if Process32NextW(snapshot, &mut entry).is_err() {
+                    break;
+                }
+            }
+        }
+        let _ = CloseHandle(snapshot);
+    }
+    Some(found)
+}
+
+/// Resolves the full image path of a process so Codex can be told apart from
+/// the plain ChatGPT desktop app. `None` means the query failed and matching
+/// must degrade to name-only.
+#[cfg(target_os = "windows")]
+fn process_image_path(pid: u32) -> Option<String> {
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
+    let mut buffer = [0u16; 1024];
+    let mut length = buffer.len() as u32;
+    let query_result = unsafe {
+        QueryFullProcessImageNameW(
+            process,
+            PROCESS_NAME_WIN32,
+            PWSTR::from_raw(buffer.as_mut_ptr()),
+            &mut length,
+        )
+    };
+    let path = if query_result.is_ok() {
+        Some(String::from_utf16_lossy(&buffer[..length as usize]))
+    } else {
+        None
+    };
+    let _ = unsafe { CloseHandle(process) };
+    path
+}
+
+/// Spawns a detached copy of this executable running in the given mode. The
+/// window-less creation flag keeps debug builds (console subsystem) from
+/// flashing a console window when launched at login or from the widget.
+#[cfg(target_os = "windows")]
+fn spawn_self_with_flag(flag: &str) -> std::io::Result<std::process::Child> {
+    use std::os::windows::process::CommandExt;
+    use windows::Win32::System::Threading::CREATE_NO_WINDOW;
+
+    std::process::Command::new(std::env::current_exe()?)
+        .arg(flag)
+        .creation_flags(CREATE_NO_WINDOW.0)
+        .spawn()
+}
+
+/// Body of the login-mode watcher process: a window-less loop that launches
+/// the widget whenever Codex appears and self-terminates as soon as the
+/// startup entry is removed or disabled in Task Manager. The registry check
+/// runs every tick so even a watcher this process did not spawn (the login
+/// launch) stops within one poll interval after the feature is switched off.
+#[cfg(target_os = "windows")]
+fn run_codex_watcher() {
+    let mut previous_running: Option<bool> = None;
+    loop {
+        if !windows_autostart_entry_is_enabled(WINDOWS_AUTOSTART_VALUE_NAME) {
+            return;
+        }
+        if let Some(running) = codex_running_state() {
+            if matches!(
+                watcher_action(previous_running, running),
+                WatcherAction::SpawnWidget
+            ) {
+                match spawn_self_with_flag(FOLLOW_CODEX_FLAG) {
+                    Ok(child) => {
+                        eprintln!("Codex detected; spawned follow widget");
+                        drop(child);
+                    }
+                    Err(error) => eprintln!("failed to spawn follow widget: {error}"),
+                }
+            }
+            previous_running = Some(running);
+        }
+        std::thread::sleep(CODEX_POLL_INTERVAL);
+    }
+}
+
+/// Starts (or replaces) the watcher process managed by this widget instance,
+/// used when the startup setting is turned on from the tray or the settings
+/// window so the feature takes effect without waiting for the next login.
+#[cfg(target_os = "windows")]
+fn spawn_follow_watcher(app: &AppHandle) -> Result<(), String> {
+    let state = app
+        .try_state::<AppState>()
+        .ok_or_else(|| "app state missing".to_string())?;
+    let mut watcher = state
+        .follow_watcher
+        .lock()
+        .map_err(|_| "follow watcher state poisoned".to_string())?;
+    if let Some(child) = watcher.as_mut() {
+        if matches!(child.try_wait(), Ok(None)) {
+            return Ok(());
+        }
+    }
+    let child = spawn_self_with_flag(AUTOSTART_WITH_CODEX_FLAG)
+        .map_err(|error| format!("failed to start Codex follower: {error}"))?;
+    *watcher = Some(child);
+    Ok(())
+}
+
+/// Stops the watcher process spawned by this widget instance. Login-spawned
+/// watchers are not children of this process; they exit on their own via the
+/// registry self-check, so a missing tracked child is not an error here.
+#[cfg(target_os = "windows")]
+fn stop_follow_watcher(app: &AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let Ok(mut watcher) = state.follow_watcher.lock() else {
+        return;
+    };
+    if let Some(mut child) = watcher.take() {
+        if child.kill().is_ok() {
+            let _ = child.wait();
+        }
+    }
+}
+
+/// Exits the whole widget process once Codex has verifiably disappeared on
+/// two consecutive samples, so a single missed snapshot never kills the
+/// widget while the user is working.
+#[cfg(target_os = "windows")]
+fn start_codex_exit_watcher(app: AppHandle) {
+    std::thread::spawn(move || {
+        let mut misses = 0u32;
+        loop {
+            std::thread::sleep(CODEX_POLL_INTERVAL);
+            match codex_running_state() {
+                Some(false) => {
+                    misses += 1;
+                    if misses >= FOLLOW_EXIT_CONFIRMATIONS {
+                        eprintln!("Codex exited; Quota Float follows");
+                        app.exit(0);
+                        return;
+                    }
+                }
+                Some(true) => misses = 0,
+                None => {}
+            }
+        }
+    });
+}
+
+/// Applies the "start with Codex" setting and makes it effective immediately:
+/// enabling also starts the follower watcher for this session, disabling stops
+/// the tracked watcher (login-spawned watchers exit on their own through the
+/// registry self-check). Shared by the tray menu and the settings window.
+fn apply_autostart_setting(app: &AppHandle, enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let result = if enabled {
+        repair_windows_autostart_entry(app)
+    } else {
+        disable_windows_autostart_entry(app)
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let result = if enabled {
+        app.autolaunch()
+            .enable()
+            .map_err(|error| format!("failed to enable startup: {error}"))
+    } else {
+        app.autolaunch()
+            .disable()
+            .map_err(|error| format!("failed to disable startup: {error}"))
+    };
+
+    #[cfg(target_os = "windows")]
+    match (enabled, &result) {
+        (true, Ok(())) => {
+            if let Err(error) = spawn_follow_watcher(app) {
+                eprintln!("{error}");
+            }
+        }
+        (false, Ok(())) => stop_follow_watcher(app),
+        _ => {}
+    }
+
+    result
+}
+
+#[tauri::command]
+fn set_autostart_enabled(enabled: bool, app: AppHandle) -> Result<(), String> {
+    apply_autostart_setting(&app, enabled)
+}
+
+fn autostart_is_enabled(app: &AppHandle) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        windows_autostart_is_enabled(app)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        app.autolaunch().is_enabled().unwrap_or(false)
+    }
+}
+
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show / Hide", true, None::<&str>)?;
     let refresh = MenuItem::with_id(app, "refresh", "Refresh now", true, None::<&str>)?;
-    let update = MenuItem::with_id(app, "update", "Check for updates", true, None::<&str>)?;
     let unlock = MenuItem::with_id(app, "unlock", "Unlock widget", true, None::<&str>)?;
-    let pin = MenuItem::with_id(app, "pin", "Pin / Unpin Codex", true, None::<&str>)?;
     let language = MenuItem::with_id(
         app,
         "language",
@@ -1029,6 +1778,9 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let theme_warm = CheckMenuItem::with_id(app, "theme-warm", "Warm Daily Orange", true, false, None::<&str>)?;
     let theme_city = CheckMenuItem::with_id(app, "theme-city", "City Dusk Purple", true, false, None::<&str>)?;
     let theme_home = CheckMenuItem::with_id(app, "theme-home", "Home Night", true, false, None::<&str>)?;
+    let theme_naruto = CheckMenuItem::with_id(app, "theme-naruto", "Naruto · Six Paths", true, false, None::<&str>)?;
+    let theme_yone = CheckMenuItem::with_id(app, "theme-yone", "Spirit Blossom · Yone", true, false, None::<&str>)?;
+    let theme_glacier = CheckMenuItem::with_id(app, "theme-glacier", "Glacier Aurora", true, false, None::<&str>)?;
     let preferences_menu = MenuItem::with_id(app, "preferences", "Preferences / 偏好设置", true, None::<&str>)?;
     let theme = Submenu::with_items(
         app,
@@ -1042,13 +1794,16 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
             &theme_warm,
             &theme_city,
             &theme_home,
+            &theme_naruto,
+            &theme_yone,
+            &theme_glacier,
         ],
     )?;
-    let autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
+    let autostart_enabled = autostart_is_enabled(app.handle());
     let autostart = CheckMenuItem::with_id(
         app,
         "autostart",
-        "Start at login",
+        "Start with Codex",
         true,
         autostart_enabled,
         None::<&str>,
@@ -1063,12 +1818,6 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let settings = Submenu::with_items(
-        app,
-        "Settings / 设置",
-        true,
-        &[&preferences_menu, &unlock, &pin, &language, &autostart],
-    )?;
     let initial_language = app
         .try_state::<AppState>()
         .and_then(|state| {
@@ -1090,12 +1839,13 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let _ = theme_warm.set_checked(initial_appearance == "warm");
     let _ = theme_city.set_checked(initial_appearance == "city");
     let _ = theme_home.set_checked(initial_appearance == "home");
+    let _ = theme_naruto.set_checked(initial_appearance == "naruto");
+    let _ = theme_yone.set_checked(initial_appearance == "yone");
+    let _ = theme_glacier.set_checked(initial_appearance == "glacier");
     if initial_language != "en" {
         let _ = show.set_text("显示 / 隐藏");
         let _ = refresh.set_text("立即刷新");
-        let _ = update.set_text(update_menu_label(&initial_language, false));
         let _ = unlock.set_text("解锁悬浮窗");
-        let _ = pin.set_text("固定 / 取消固定 Codex");
         let _ = language.set_text("Switch to English");
         let _ = theme.set_text("主题");
         let _ = theme_system.set_text("跟随系统");
@@ -1105,8 +1855,11 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         let _ = theme_warm.set_text("温暖·日常橙");
         let _ = theme_city.set_text("城市·暮色紫");
         let _ = theme_home.set_text("居家·夜晚");
+        let _ = theme_naruto.set_text("六道·鸣人");
+        let _ = theme_yone.set_text("灵魂莲华·永恩");
+        let _ = theme_glacier.set_text("冰川极光");
         let _ = preferences_menu.set_text("偏好设置");
-        let _ = autostart.set_text("开机启动");
+        let _ = autostart.set_text("随 Codex 启动");
         let _ = quit.set_text("退出");
     }
     if initial_language == "en" {
@@ -1118,6 +1871,9 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         let _ = theme_warm.set_text("Warm Daily Orange");
         let _ = theme_city.set_text("City Dusk Purple");
         let _ = theme_home.set_text("Home Night");
+        let _ = theme_naruto.set_text("Naruto · Six Paths");
+        let _ = theme_yone.set_text("Spirit Blossom · Yone");
+        let _ = theme_glacier.set_text("Glacier Aurora");
         let _ = preferences_menu.set_text("Preferences");
     }
     #[cfg(debug_assertions)]
@@ -1126,8 +1882,10 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         &[
             &show,
             &refresh,
-            &update,
-            &settings,
+            &preferences_menu,
+            &unlock,
+            &language,
+            &autostart,
             &theme,
             &test_short_window,
             &quit,
@@ -1136,10 +1894,11 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     #[cfg(not(debug_assertions))]
     let menu = Menu::with_items(
         app,
-        &[&show, &refresh, &update, &settings, &theme, &quit],
+        &[&show, &refresh, &preferences_menu, &unlock, &language, &autostart, &theme, &quit],
     )?;
     let mut builder = TrayIconBuilder::with_id("main")
         .menu(&menu)
+        .menu_on_left_click(false)
         .tooltip("Quota Float");
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
@@ -1147,10 +1906,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let autostart_menu = autostart.clone();
     let show_menu = show.clone();
     let refresh_menu = refresh.clone();
-    let update_menu = update.clone();
-    let update_indicator = update.clone();
     let unlock_menu = unlock.clone();
-    let pin_menu = pin.clone();
     let language_menu = language.clone();
     let theme_menu = theme.clone();
     let theme_system_menu = theme_system.clone();
@@ -1160,6 +1916,9 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let theme_warm_menu = theme_warm.clone();
     let theme_city_menu = theme_city.clone();
     let theme_home_menu = theme_home.clone();
+    let theme_naruto_menu = theme_naruto.clone();
+    let theme_yone_menu = theme_yone.clone();
+    let theme_glacier_menu = theme_glacier.clone();
     let preferences_menu_menu = preferences_menu.clone();
     let theme_system_state = theme_system.clone();
     let theme_dark_state = theme_dark.clone();
@@ -1168,6 +1927,9 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let theme_warm_state = theme_warm.clone();
     let theme_city_state = theme_city.clone();
     let theme_home_state = theme_home.clone();
+    let theme_naruto_state = theme_naruto.clone();
+    let theme_yone_state = theme_yone.clone();
+    let theme_glacier_state = theme_glacier.clone();
     let quit_menu = quit.clone();
     #[cfg(debug_assertions)]
     let test_short_window_menu = test_short_window.clone();
@@ -1186,9 +1948,6 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
             "refresh" => {
                 let _ = app.emit_to("widget", "refresh-requested", ());
             }
-            "update" => {
-                let _ = app.emit_to("widget", "update-check-requested", ());
-            }
             "debug-short-window" =>
             {
                 #[cfg(debug_assertions)]
@@ -1205,19 +1964,6 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                 if let Some(state) = app.try_state::<AppState>() {
                     if let Ok(mut prefs) = state.preferences.lock() {
                         prefs.locked = false;
-                        let _ = persist_preferences(&state.preferences_path, &prefs);
-                        let _ = app.emit_to("widget", "preferences-changed", prefs.clone());
-                    }
-                }
-            }
-            "pin" => {
-                if let Some(state) = app.try_state::<AppState>() {
-                    if let Ok(mut prefs) = state.preferences.lock() {
-                        prefs.pinned_provider = if prefs.pinned_provider.is_some() {
-                            None
-                        } else {
-                            Some("codex".into())
-                        };
                         let _ = persist_preferences(&state.preferences_path, &prefs);
                         let _ = app.emit_to("widget", "preferences-changed", prefs.clone());
                     }
@@ -1245,21 +1991,10 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                         } else {
                             "立即刷新"
                         });
-                        let update_available = state
-                            .update_available
-                            .lock()
-                            .map(|value| *value)
-                            .unwrap_or(false);
-                        let _ = update_menu.set_text(update_menu_label(&normalized.language, update_available));
                         let _ = unlock_menu.set_text(if english {
                             "Unlock widget"
                         } else {
                             "解锁悬浮窗"
-                        });
-                        let _ = pin_menu.set_text(if english {
-                            "Pin / Unpin Codex"
-                        } else {
-                            "固定 / 取消固定 Codex"
                         });
                         let _ = language_menu.set_text(if english {
                             "切换到中文"
@@ -1274,11 +2009,14 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                         let _ = theme_warm_menu.set_text(if english { "Warm Daily Orange" } else { "温暖·日常橙" });
                         let _ = theme_city_menu.set_text(if english { "City Dusk Purple" } else { "城市·暮色紫" });
                         let _ = theme_home_menu.set_text(if english { "Home Night" } else { "居家·夜晚" });
+                        let _ = theme_naruto_menu.set_text(if english { "Naruto · Six Paths" } else { "六道·鸣人" });
+                        let _ = theme_yone_menu.set_text(if english { "Spirit Blossom · Yone" } else { "灵魂莲华·永恩" });
+                        let _ = theme_glacier_menu.set_text(if english { "Glacier Aurora" } else { "冰川极光" });
                         let _ = preferences_menu_menu.set_text(if english { "Preferences" } else { "偏好设置" });
                         let _ = autostart_menu.set_text(if english {
-                            "Start at login"
+                            "Start with Codex"
                         } else {
-                            "开机启动"
+                            "随 Codex 启动"
                         });
                         let _ = quit_menu.set_text(if english { "Quit" } else { "退出" });
                         let _ = app.emit_to("widget", "preferences-changed", normalized.clone());
@@ -1294,7 +2032,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                     let _ = window.set_focus();
                 }
             }
-            "theme-system" | "theme-dark" | "theme-light" | "theme-sakura" | "theme-warm" | "theme-city" | "theme-home" => {
+            "theme-system" | "theme-dark" | "theme-light" | "theme-sakura" | "theme-warm" | "theme-city" | "theme-home" | "theme-naruto" | "theme-yone" | "theme-glacier" => {
                 if let Some(state) = app.try_state::<AppState>() {
                     if let Ok(mut prefs) = state.preferences.lock() {
                         prefs.appearance = match event.id.as_ref() {
@@ -1304,6 +2042,9 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                             "theme-warm" => "warm".into(),
                             "theme-city" => "city".into(),
                             "theme-home" => "home".into(),
+                            "theme-naruto" => "naruto".into(),
+                            "theme-yone" => "yone".into(),
+                            "theme-glacier" => "glacier".into(),
                             _ => "system".into(),
                         };
                         let normalized = prefs.clone().normalized();
@@ -1316,59 +2057,58 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                             let _ = theme_warm_state.set_checked(normalized.appearance == "warm");
                             let _ = theme_city_state.set_checked(normalized.appearance == "city");
                             let _ = theme_home_state.set_checked(normalized.appearance == "home");
+                            let _ = theme_naruto_state.set_checked(normalized.appearance == "naruto");
+                            let _ = theme_yone_state.set_checked(normalized.appearance == "yone");
+                            let _ = theme_glacier_state.set_checked(normalized.appearance == "glacier");
                             let _ = app.emit_to("widget", "preferences-changed", normalized.clone());
                         }
                     }
                 }
             }
             "autostart" => {
-                let manager = app.autolaunch();
-                let enabled = manager.is_enabled().unwrap_or(false);
-                let result = if enabled {
-                    manager.disable()
-                } else {
-                    manager.enable()
-                };
-                match result {
+                let enabled = autostart_is_enabled(app);
+                match apply_autostart_setting(app, !enabled) {
                     Ok(()) => {
                         let _ = autostart_menu.set_checked(!enabled);
                     }
-                    Err(_) => eprintln!("autostart update failed"),
+                    Err(error) => eprintln!("autostart update failed: {error}"),
                 }
             }
             "quit" => app.exit(0),
             _ => {}
         })
         .build(app)?;
-    // Do this after creating the tray and off the UI thread. A failed or slow
-    // network check leaves the ordinary menu item untouched.
-    let update_app = app.handle().clone();
-    tauri::async_runtime::spawn(async move {
-        let Ok(updater) = update_app.updater() else {
-            return;
-        };
-        if updater.check().await.ok().flatten().is_none() {
-            return;
-        }
-        let language = update_app
-            .try_state::<AppState>()
-            .and_then(|state| {
-                if let Ok(mut available) = state.update_available.lock() {
-                    *available = true;
-                }
-                state.preferences.lock().ok().map(|prefs| prefs.language.clone())
-            })
-            .unwrap_or_else(|| "zh-CN".into());
-        let _ = update_indicator.set_text(update_menu_label(&language, true));
-    });
     Ok(())
 }
 
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    {
+        // Login launches run as a window-less watcher only: no Tauri app is
+        // built until Codex actually appears, so nothing shows up when Codex
+        // is absent.
+        if std::env::args().any(|arg| arg == AUTOSTART_WITH_CODEX_FLAG) {
+            run_codex_watcher();
+            return;
+        }
+        // A follow launch races Codex shutdown; if Codex is verifiably gone on
+        // two samples, exit without ever creating a window.
+        if std::env::args().any(|arg| arg == FOLLOW_CODEX_FLAG)
+            && codex_running_state() == Some(false)
+        {
+            std::thread::sleep(Duration::from_millis(400));
+            if codex_running_state() == Some(false) {
+                return;
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    let autostart_args = Some(vec![AUTOSTART_WITH_CODEX_FLAG]);
+    #[cfg(not(target_os = "windows"))]
+    let autostart_args: Option<Vec<&'static str>> = None;
+
     let app = tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("widget") {
                 let _ = window.show();
@@ -1377,9 +2117,9 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
-            None,
+            autostart_args,
         ))
-        .plugin(WindowStateBuilder::default().build())
+        .plugin(WindowStateBuilder::default().with_denylist(&["context-menu"]).build())
         .setup(|app| {
             let data_dir = app.path().app_config_dir()?;
             let preferences_path = data_dir.join("preferences.json");
@@ -1402,9 +2142,31 @@ pub fn run() {
                 #[cfg(debug_assertions)]
                 simulate_short_window_for_testing: Mutex::new(false),
                 geometry: Mutex::new(None),
+                context_menu: Mutex::new(None),
                 drag_mode: Mutex::new(None),
-                update_available: Mutex::new(false),
+                #[cfg(target_os = "windows")]
+                follow_watcher: Mutex::new(None),
             });
+            #[cfg(target_os = "windows")]
+            {
+                // Repair an existing enabled entry as well as newly enabled
+                // entries, so users do not need to toggle the setting twice
+                // after upgrading from the unquoted command implementation.
+                if autostart_is_enabled(app.handle()) {
+                    if let Err(error) = repair_windows_autostart_entry(app.handle()) {
+                        eprintln!("failed to repair Windows startup command: {error}");
+                    }
+                }
+                if std::env::args().any(|arg| arg == FOLLOW_CODEX_FLAG) {
+                    // window-state restores the last saved visibility, which
+                    // may be hidden; a follow launch must surface the widget.
+                    if let Some(window) = app.get_webview_window("widget") {
+                        let _ = window.show();
+                    }
+                    start_codex_exit_watcher(app.handle().clone());
+                    let _ = app.emit_to("widget", "refresh-requested", ());
+                }
+            }
             if setup_tray(app).is_err() {
                 eprintln!("tray setup failed; enabling taskbar fallback");
                 if let Some(window) = app.get_webview_window("widget") {
@@ -1451,14 +2213,26 @@ pub fn run() {
             clear_quota_history,
             expand_widget,
             collapse_widget,
+            set_widget_menu_open,
+            get_context_menu,
+            show_context_menu,
             begin_widget_drag,
             finish_widget_drag,
             get_preferences,
             set_preferences,
             set_widget_opacity,
+            set_widget_liquid_glass,
+            set_widget_background_image,
             set_widget_locked,
             set_widget_always_on_top,
             sync_widget_appearance,
+            hide_widget,
+            show_widget,
+            is_widget_visible,
+            open_settings_window,
+            quit_application,
+            get_autostart_status,
+            set_autostart_enabled,
         ])
         .on_tray_icon_event(|app, event| {
             if let TrayIconEvent::Click {
@@ -1476,7 +2250,14 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = window.hide();
+                if window.label() == "context-menu" {
+                    // Native close requests must release the widget's menu
+                    // guard just like Escape or a click outside the popup.
+                    let app = window.app_handle();
+                    let _ = set_widget_menu_open(false, None, None, app.clone(), app.state());
+                } else {
+                    let _ = window.hide();
+                }
             }
         })
         .build(tauri::generate_context!())

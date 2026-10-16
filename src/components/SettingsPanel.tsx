@@ -4,17 +4,28 @@
  * Desktop preferences panel for settings that need continuous input instead
  * of a fixed tray-menu choice.
  */
-import { useEffect, useState } from "react";
-import { getPreferences, listenDesktopEvents, setClickThrough, setWidgetOpacity } from "../lib/bridge";
+import { useEffect, useState, type ChangeEvent } from "react";
+import { getPreferences, listenDesktopEvents, setClickThrough, setWidgetBackgroundImage, setWidgetLiquidGlass, setWidgetOpacity } from "../lib/bridge";
+import {
+  isSupportedBackgroundType,
+  MAX_BACKGROUND_FILE_BYTES,
+  readImageAsDataUrl,
+} from "../lib/backgroundImage";
+import { BackgroundCropEditor } from "./BackgroundCropEditor";
 
 const DEFAULT_OPACITY = 100;
 
 export function SettingsPanel() {
   const [opacity, setOpacity] = useState(DEFAULT_OPACITY);
   const [clickThrough, setClickThroughState] = useState(false);
+  const [liquidGlassEnabled, setLiquidGlassEnabled] = useState(false);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+  const [pendingBackgroundImage, setPendingBackgroundImage] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [clickThroughSaving, setClickThroughSaving] = useState(false);
+  const [liquidGlassSaving, setLiquidGlassSaving] = useState(false);
+  const [backgroundSaving, setBackgroundSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,6 +35,8 @@ export function SettingsPanel() {
       if (!cancelled) {
         setOpacity(preferences.opacity);
         setClickThroughState(preferences.locked);
+        setLiquidGlassEnabled(preferences.liquidGlassEnabled);
+        setBackgroundImage(preferences.customBackgroundImage);
         setReady(true);
       }
     }).catch(() => {
@@ -36,9 +49,10 @@ export function SettingsPanel() {
       onPreferences: (preferences) => {
         setOpacity(preferences.opacity);
         setClickThroughState(preferences.locked);
+        setLiquidGlassEnabled(preferences.liquidGlassEnabled);
+        setBackgroundImage(preferences.customBackgroundImage);
       },
       onRefresh: () => undefined,
-      onUpdate: () => undefined,
     }).then((unlisten) => {
       if (cancelled) unlisten(); else cleanup = unlisten;
     }).catch(() => undefined);
@@ -78,6 +92,79 @@ export function SettingsPanel() {
       .finally(() => setClickThroughSaving(false));
   };
 
+  const handleLiquidGlassChange = (nextValue: boolean) => {
+    const previousValue = liquidGlassEnabled;
+    // Apply the selected state immediately, then let the native command save
+    // and broadcast it so both the compact orb and expanded card stay in sync.
+    setLiquidGlassEnabled(nextValue);
+    setLiquidGlassSaving(true);
+    setError(null);
+    void setWidgetLiquidGlass(nextValue)
+      .then((preferences) => setLiquidGlassEnabled(preferences.liquidGlassEnabled))
+      .catch(() => {
+        setLiquidGlassEnabled(previousValue);
+        setError("Liquid Glass 设置保存失败，请重试。");
+      })
+      .finally(() => setLiquidGlassSaving(false));
+  };
+
+  const handleBackgroundChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    // Clearing the input allows the user to pick the same image again after a
+    // failed save or after removing it.
+    input.value = "";
+    if (!file) return;
+    if (!isSupportedBackgroundType(file.type)) {
+      setError("请选择 PNG、JPEG 或 WebP 图片。");
+      return;
+    }
+    if (file.size > MAX_BACKGROUND_FILE_BYTES) {
+      setError("背景图片不能超过 4 MB。");
+      return;
+    }
+
+    setBackgroundSaving(true);
+    setError(null);
+    try {
+      const dataUrl = await readImageAsDataUrl(file);
+      setPendingBackgroundImage(dataUrl);
+    } catch {
+      setError("背景图片读取失败，请重新选择。");
+    } finally {
+      setBackgroundSaving(false);
+    }
+  };
+
+  const handleBackgroundApply = async (image: string) => {
+    setBackgroundSaving(true);
+    setError(null);
+    try {
+      const preferences = await setWidgetBackgroundImage(image);
+      setBackgroundImage(preferences.customBackgroundImage);
+      setPendingBackgroundImage(null);
+    } catch {
+      setError("背景图片保存失败，请重试。");
+      throw new Error("background-save-failed");
+    } finally {
+      setBackgroundSaving(false);
+    }
+  };
+
+  const handleBackgroundClear = async () => {
+    if (!backgroundImage) return;
+    setBackgroundSaving(true);
+    setError(null);
+    try {
+      const preferences = await setWidgetBackgroundImage(null);
+      setBackgroundImage(preferences.customBackgroundImage);
+    } catch {
+      setError("背景图片清除失败，请重试。");
+    } finally {
+      setBackgroundSaving(false);
+    }
+  };
+
   return (
     <main className="settings-panel">
       <header className="settings-panel__header">
@@ -107,6 +194,31 @@ export function SettingsPanel() {
         </label>
         <div className="settings-range__labels" aria-hidden="true"><span>0%</span><span>100%</span></div>
       </section>
+      <section className="settings-section settings-section--background" aria-labelledby="background-title">
+        <div className="settings-section__heading">
+          <div className="settings-section__copy">
+            <h2 id="background-title">自定义背景图片</h2>
+            <p>图片会同时应用到展开卡和折叠悬浮球。</p>
+          </div>
+          <span className="settings-background__state" aria-live="polite">{backgroundImage ? "已设置" : "未设置"}</span>
+        </div>
+        <div
+          className={`settings-background-preview${backgroundImage ? " settings-background-preview--has-image" : ""}`}
+          style={backgroundImage ? { backgroundImage: `url("${backgroundImage}")` } : undefined}
+          role="img"
+          aria-label={backgroundImage ? "当前自定义背景图片预览" : "尚未设置背景图片"}
+        >
+          {!backgroundImage ? <span>未选择图片</span> : null}
+        </div>
+        <div className="settings-background__actions">
+          <label className={`settings-file-button${backgroundSaving ? " settings-file-button--disabled" : ""}`}>
+            <span>{backgroundSaving ? "保存中…" : "选择图片"}</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" disabled={backgroundSaving} onChange={(event) => void handleBackgroundChange(event)} />
+          </label>
+          <button type="button" className="settings-background__clear" disabled={!backgroundImage || backgroundSaving} onClick={() => void handleBackgroundClear()}>清除图片</button>
+        </div>
+        <p className="settings-background__hint">支持 PNG、JPEG、WebP，单张不超过 4 MB；图片仅保存在本机。</p>
+      </section>
       <section className="settings-section settings-section--click-through" aria-labelledby="click-through-title">
         <div className="settings-section__heading">
           <div className="settings-section__copy">
@@ -129,9 +241,32 @@ export function SettingsPanel() {
         </div>
       </section>
 
+      <section className="settings-section settings-section--liquid-glass" aria-labelledby="liquid-glass-title">
+        <div className="settings-section__heading">
+          <div className="settings-section__copy">
+            <h2 id="liquid-glass-title">Liquid Glass</h2>
+            <p>为展开卡和悬浮球添加透光模糊与玻璃高光效果。</p>
+          </div>
+          <label className="settings-switch" htmlFor="liquid-glass-toggle">
+            <span className="sr-only">启用 Liquid Glass</span>
+            <input
+              className="settings-switch__input"
+              id="liquid-glass-toggle"
+              type="checkbox"
+              checked={liquidGlassEnabled}
+              disabled={!ready || liquidGlassSaving}
+              onChange={(event) => handleLiquidGlassChange(event.target.checked)}
+            />
+            <span className="settings-switch__track" aria-hidden="true"><span /></span>
+            <span className="settings-switch__state" aria-live="polite">{liquidGlassEnabled ? "已开启" : "已关闭"}</span>
+          </label>
+        </div>
+      </section>
+
       <p className={`settings-status${error ? " settings-status--error" : ""}`} role={error ? "alert" : "status"}>
-        {error ?? (saving || clickThroughSaving ? "正在保存…" : "已保存")}
+        {error ?? (saving || clickThroughSaving || liquidGlassSaving || backgroundSaving ? "正在保存…" : "已保存")}
       </p>
+      {pendingBackgroundImage ? <BackgroundCropEditor image={pendingBackgroundImage} onCancel={() => setPendingBackgroundImage(null)} onApply={handleBackgroundApply} /> : null}
     </main>
   );
 }
