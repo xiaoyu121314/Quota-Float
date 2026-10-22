@@ -137,7 +137,7 @@ impl WidgetPreferences {
             self.language = default_language();
         }
         // 新主题必须通过原生设置校验，否则保存或重启时会被回退成浅色主题。
-        if self.appearance != "system" && self.appearance != "light" && self.appearance != "dark" && self.appearance != "sakura" && self.appearance != "warm" && self.appearance != "city" && self.appearance != "home" && self.appearance != "naruto" && self.appearance != "yone" && self.appearance != "glacier" {
+        if self.appearance != "system" && self.appearance != "light" && self.appearance != "dark" && self.appearance != "sakura" && self.appearance != "warm" && self.appearance != "city" && self.appearance != "home" && self.appearance != "naruto" && self.appearance != "yone" && self.appearance != "glacier" && self.appearance != "yunlin" {
             self.appearance = default_appearance();
         }
         self.opacity = self.opacity.clamp(0, 100);
@@ -194,6 +194,17 @@ mod tests {
         let serialized = serde_json::to_string(&preferences).unwrap();
         let deserialized: WidgetPreferences = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized.normalized().appearance, "glacier");
+    }
+
+    #[test]
+    fn normalization_preserves_yunlin_after_serde_round_trip() {
+        let preferences = WidgetPreferences {
+            appearance: "yunlin".into(),
+            ..WidgetPreferences::default()
+        };
+        let serialized = serde_json::to_string(&preferences).unwrap();
+        let deserialized: WidgetPreferences = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.normalized().appearance, "yunlin");
     }
 
     #[test]

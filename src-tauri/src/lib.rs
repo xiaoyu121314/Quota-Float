@@ -1781,6 +1781,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let theme_naruto = CheckMenuItem::with_id(app, "theme-naruto", "Naruto · Six Paths", true, false, None::<&str>)?;
     let theme_yone = CheckMenuItem::with_id(app, "theme-yone", "Spirit Blossom · Yone", true, false, None::<&str>)?;
     let theme_glacier = CheckMenuItem::with_id(app, "theme-glacier", "Glacier Aurora", true, false, None::<&str>)?;
+    let theme_yunlin = CheckMenuItem::with_id(app, "theme-yunlin", "Cloud Spirit Tails", true, false, None::<&str>)?;
     let preferences_menu = MenuItem::with_id(app, "preferences", "Preferences / 偏好设置", true, None::<&str>)?;
     let theme = Submenu::with_items(
         app,
@@ -1797,6 +1798,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
             &theme_naruto,
             &theme_yone,
             &theme_glacier,
+            &theme_yunlin,
         ],
     )?;
     let autostart_enabled = autostart_is_enabled(app.handle());
@@ -1842,6 +1844,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let _ = theme_naruto.set_checked(initial_appearance == "naruto");
     let _ = theme_yone.set_checked(initial_appearance == "yone");
     let _ = theme_glacier.set_checked(initial_appearance == "glacier");
+    let _ = theme_yunlin.set_checked(initial_appearance == "yunlin");
     if initial_language != "en" {
         let _ = show.set_text("显示 / 隐藏");
         let _ = refresh.set_text("立即刷新");
@@ -1858,6 +1861,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         let _ = theme_naruto.set_text("六道·鸣人");
         let _ = theme_yone.set_text("灵魂莲华·永恩");
         let _ = theme_glacier.set_text("冰川极光");
+        let _ = theme_yunlin.set_text("云间灵尾");
         let _ = preferences_menu.set_text("偏好设置");
         let _ = autostart.set_text("随 Codex 启动");
         let _ = quit.set_text("退出");
@@ -1874,6 +1878,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         let _ = theme_naruto.set_text("Naruto · Six Paths");
         let _ = theme_yone.set_text("Spirit Blossom · Yone");
         let _ = theme_glacier.set_text("Glacier Aurora");
+        let _ = theme_yunlin.set_text("Cloud Spirit Tails");
         let _ = preferences_menu.set_text("Preferences");
     }
     #[cfg(debug_assertions)]
@@ -1919,6 +1924,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let theme_naruto_menu = theme_naruto.clone();
     let theme_yone_menu = theme_yone.clone();
     let theme_glacier_menu = theme_glacier.clone();
+    let theme_yunlin_menu = theme_yunlin.clone();
     let preferences_menu_menu = preferences_menu.clone();
     let theme_system_state = theme_system.clone();
     let theme_dark_state = theme_dark.clone();
@@ -1930,6 +1936,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
     let theme_naruto_state = theme_naruto.clone();
     let theme_yone_state = theme_yone.clone();
     let theme_glacier_state = theme_glacier.clone();
+    let theme_yunlin_state = theme_yunlin.clone();
     let quit_menu = quit.clone();
     #[cfg(debug_assertions)]
     let test_short_window_menu = test_short_window.clone();
@@ -2012,6 +2019,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                         let _ = theme_naruto_menu.set_text(if english { "Naruto · Six Paths" } else { "六道·鸣人" });
                         let _ = theme_yone_menu.set_text(if english { "Spirit Blossom · Yone" } else { "灵魂莲华·永恩" });
                         let _ = theme_glacier_menu.set_text(if english { "Glacier Aurora" } else { "冰川极光" });
+                        let _ = theme_yunlin_menu.set_text(if english { "Cloud Spirit Tails" } else { "云间灵尾" });
                         let _ = preferences_menu_menu.set_text(if english { "Preferences" } else { "偏好设置" });
                         let _ = autostart_menu.set_text(if english {
                             "Start with Codex"
@@ -2032,7 +2040,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                     let _ = window.set_focus();
                 }
             }
-            "theme-system" | "theme-dark" | "theme-light" | "theme-sakura" | "theme-warm" | "theme-city" | "theme-home" | "theme-naruto" | "theme-yone" | "theme-glacier" => {
+            "theme-system" | "theme-dark" | "theme-light" | "theme-sakura" | "theme-warm" | "theme-city" | "theme-home" | "theme-naruto" | "theme-yone" | "theme-glacier" | "theme-yunlin" => {
                 if let Some(state) = app.try_state::<AppState>() {
                     if let Ok(mut prefs) = state.preferences.lock() {
                         prefs.appearance = match event.id.as_ref() {
@@ -2045,6 +2053,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                             "theme-naruto" => "naruto".into(),
                             "theme-yone" => "yone".into(),
                             "theme-glacier" => "glacier".into(),
+                            "theme-yunlin" => "yunlin".into(),
                             _ => "system".into(),
                         };
                         let normalized = prefs.clone().normalized();
@@ -2060,6 +2069,7 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                             let _ = theme_naruto_state.set_checked(normalized.appearance == "naruto");
                             let _ = theme_yone_state.set_checked(normalized.appearance == "yone");
                             let _ = theme_glacier_state.set_checked(normalized.appearance == "glacier");
+                            let _ = theme_yunlin_state.set_checked(normalized.appearance == "yunlin");
                             let _ = app.emit_to("widget", "preferences-changed", normalized.clone());
                         }
                     }

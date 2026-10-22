@@ -1271,6 +1271,89 @@ button { font: inherit; }
 .quota-card--theme-glacier.quota-card--liquid-glass,
 .quota-orb--theme-glacier.quota-orb--liquid-glass { box-shadow: inset 0 1px 0 #fff, inset 0 0 14px rgba(182,221,228,.48); }
 
+/* 云间灵尾：灵魂莲华阿狸的云上灵域景观，左侧粉白遮罩保证真实额度可读。
+   只调整主题外观，不改变 306px 主卡、72px 浮球及原生窗口的几何尺寸。 */
+.quota-card--theme-yunlin,
+.quota-orb--theme-yunlin {
+  --yunlin-scene-tint: linear-gradient(90deg, rgba(250,236,246,.42), rgba(250,236,246,.14) 48%, transparent 78%), linear-gradient(0deg, rgba(250,236,246,.78), transparent 38%);
+  --quota-ring-track: rgba(201,95,162,.2);
+  color: #4a2c3e;
+  border-color: rgba(199,107,158,.5);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.92), inset 0 0 0 1px rgba(255,241,250,.6);
+}
+.quota-card--theme-yunlin:not(.quota-card--custom-background),
+.quota-orb--theme-yunlin:not(.quota-orb--custom-background) {
+  background-color: #f9e9f3;
+  background-image: var(--yunlin-scene-tint), url("../assets/yunlin-clouds.png");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+/* 用户图片仍由上传功能管理；梅子文字搭配单独的粉白遮罩，避免覆盖图片来源。 */
+.quota-card--theme-yunlin.quota-card--custom-background,
+.quota-orb--theme-yunlin.quota-orb--custom-background { --custom-background-tint: linear-gradient(90deg, rgba(250,236,246,.94), rgba(250,236,246,.64)); }
+.quota-card--theme-yunlin { padding: 22px; }
+.quota-card--theme-yunlin .aurora,
+.quota-orb--theme-yunlin .aurora { display: none; }
+.quota-card--theme-yunlin .card-header { position: relative; z-index: 1; gap: 6px; }
+.quota-card--theme-yunlin .card-header > div { min-width: 0; }
+.quota-card--theme-yunlin .eyebrow { font-size: 11px; letter-spacing: .1em; overflow-wrap: anywhere; }
+.quota-card--theme-yunlin .updated { font-size: 11px; letter-spacing: .02em; }
+.quota-card--theme-yunlin :is(.eyebrow, .updated, .reset-time, .weekly-metric) { color: #7a4a66; text-shadow: 0 1px 4px rgba(255,255,255,.84); }
+.quota-card--theme-yunlin .card-actions { gap: 3px; flex-shrink: 0; }
+.quota-card--theme-yunlin .card-actions button,
+.quota-card--theme-yunlin .usage-indicator { width: 22px; height: 22px; padding: 0; color: #6e3e5a; border-color: rgba(181,90,140,.32); background: rgba(255,244,250,.86); }
+.quota-card--theme-yunlin .card-actions button:hover { background: #fff; }
+.quota-card--theme-yunlin .card-actions :is(.pin-button--active, .expand-button--active, .radar-button--active) { color: #fff; border-color: #b55a8c; background: #b55a8c; box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
+.quota-card--theme-yunlin .card-actions :is(.pin-button--active, .expand-button--active, .radar-button--active):hover { background: #9d4878; }
+.quota-card--theme-yunlin button:focus-visible { outline: 2px solid #6e3e5a; outline-offset: 2px; }
+.quota-card--theme-yunlin .usage-indicator--ok i,
+.quota-card--theme-yunlin .usage-indicator--active i { background: #c95fa2; box-shadow: 0 0 6px rgba(201,95,162,.55); }
+.quota-card--theme-yunlin .usage-indicator--error i { background: #c4477e; box-shadow: 0 0 6px rgba(196,71,126,.5); }
+.quota-card--theme-yunlin .primary-metric { margin-top: 16px; color: #4a2c3e; text-shadow: 0 1px 6px rgba(255,255,255,.78); }
+.quota-card--theme-yunlin .progress,
+.quota-card--theme-yunlin .quota-radar__current-progress { background: rgba(74,44,62,.12); box-shadow: inset 0 0 0 1px rgba(181,90,140,.12); }
+.quota-card--theme-yunlin .progress span { box-shadow: none; }
+.quota-card--theme-yunlin .reset-time { margin-top: 8px; font-size: 10px; line-height: 1.45; letter-spacing: 0; }
+.quota-card--theme-yunlin .card-footer { position: absolute; left: 22px; right: 22px; bottom: 21px; padding-top: 14px; border-top: 1px solid rgba(74,44,62,.16); }
+.quota-card--theme-yunlin .weekly-metric { max-width: 205px; }
+.quota-card--theme-yunlin .weekly-metric p { font-size: 10px; font-weight: 500; line-height: 1.4; letter-spacing: 0; }
+.quota-card--theme-yunlin .weekly-metric strong { font-size: 28px; }
+.quota-card--theme-yunlin .weekly-metric strong.weekly-value--unavailable,
+.quota-card--theme-yunlin .weekly-note { color: #8a6a7c; }
+.quota-card--theme-yunlin .weekly-metric span { color: #4a2c3e; font-size: 10px; }
+.quota-card--theme-yunlin .reset-credit-button { color: #a8508a; font-size: 10px; font-weight: 650; }
+.quota-card--theme-yunlin .reset-credit-button:hover { color: #6e3e5a; }
+.quota-card--theme-yunlin .reset-credit-tip { z-index: 3; color: #4a2c3e; border-color: #d9a4c4; background: rgba(253,246,251,.98); text-shadow: none; }
+.quota-card--theme-yunlin .provider-mark { width: 32px; height: 32px; border: 1px solid rgba(181,90,140,.3); border-radius: 50%; background: rgba(255,246,251,.88); }
+.quota-card--theme-yunlin .provider-mark img { filter: brightness(.38) sepia(1) saturate(1.8) hue-rotate(285deg); }
+.quota-card--theme-yunlin:has(.quota-radar, .error-state) {
+  --yunlin-scene-tint: linear-gradient(rgba(252,240,248,.88), rgba(248,226,240,.92));
+  --custom-background-tint: var(--yunlin-scene-tint);
+}
+.quota-card--theme-yunlin .quota-radar { position: absolute; left: 22px; right: 22px; bottom: 20px; }
+.quota-card--theme-yunlin :is(.quota-radar__metric, .token-activity) { background: rgba(255,251,253,.5); color: #a8508a; }
+.quota-card--theme-yunlin .quota-radar__metric--weekly { color: #8a5a9e; }
+.quota-card--theme-yunlin :is(.quota-radar__clear, .quota-radar__ranges button) { border-color: rgba(181,90,140,.28); background: rgba(255,246,251,.65); }
+.quota-card--theme-yunlin .quota-radar__ranges button:is(:hover, .is-active) { border-color: #efb0d8; background: #f8ddec; }
+.quota-card--theme-yunlin .quota-radar__clear-confirm { color: #4a2c3e; border-color: #d9a4c4; background: #fdf6fb; }
+.quota-card--theme-yunlin .quota-radar__clear-confirm button:not(.is-danger) { color: #6e3e5a; border-color: #d9a4c4; background: #f8ddec; }
+.quota-card--theme-yunlin .error-state { margin-top: 20px; }
+.quota-card--theme-yunlin .error-state strong { font-size: 23px; }
+.quota-card--theme-yunlin .error-state p { color: #7a4a66; }
+.quota-card--theme-yunlin .status-icon { margin-bottom: 12px; color: var(--progress-start); border-color: rgba(181,90,140,.3); background: rgba(255,244,250,.78); box-shadow: none; }
+.quota-card--theme-yunlin .error-refresh-button { margin-top: 18px; color: #a8508a; border-color: #d9a4c4; background: #fbe8f3; box-shadow: none; }
+.quota-card--theme-yunlin .error-refresh-button:hover { background: #fff; }
+.quota-orb--theme-yunlin { border-radius: 50%; }
+.quota-orb--theme-yunlin.quota-orb--idle { opacity: calc(var(--widget-opacity, 1) * .9); }
+.quota-orb--theme-yunlin .orb-metric { position: relative; z-index: 1; color: #4a2c3e; text-shadow: 0 1px 4px #fff; }
+.quota-orb--theme-yunlin:is(.quota-card--caution, .quota-card--critical) .orb-metric { color: var(--progress-start); }
+.quota-orb--theme-yunlin .orb-weekly-badge { color: #b55a8c; }
+.quota-orb--theme-yunlin .orb-unavailable { position: relative; z-index: 1; color: var(--progress-start); border-color: rgba(181,90,140,.3); background: rgba(255,246,251,.88); }
+/* 玻璃开关只增强粉白内缘；关闭后仍保留主题景观。 */
+.quota-card--theme-yunlin.quota-card--liquid-glass,
+.quota-orb--theme-yunlin.quota-orb--liquid-glass { box-shadow: inset 0 1px 0 #fff, inset 0 0 14px rgba(246,217,237,.55); }
+
 
 .ctx-menu {
   position: fixed;
@@ -1388,6 +1471,10 @@ button { font: inherit; }
 .ctx-menu--glacier .ctx-item:hover,
 .ctx-menu--glacier .ctx-item--active { background: rgba(91,175,181,.16); }
 .ctx-menu--glacier .ctx-item__trailing { color: #287c8a; }
+.ctx-menu--yunlin { color: #4a2c3e; border-color: rgba(199,107,158,.3); background: rgba(252,242,249,.98); box-shadow: 0 8px 24px rgba(110,62,90,.16), inset 0 1px 0 rgba(255,255,255,.9); }
+.ctx-menu--yunlin .ctx-item:hover,
+.ctx-menu--yunlin .ctx-item--active { background: rgba(201,95,162,.14); }
+.ctx-menu--yunlin .ctx-item__trailing { color: #a8508a; }
 
 .screenshot-stage--dark { background: #111925; }
 
@@ -1454,7 +1541,15 @@ button { font: inherit; }
 .design-workbench--glacier :is(.design-preview-switch, .design-theme-switch, .design-language-switch) button.is-active { color: #fff; background: #287c8a; }
 .design-workbench--glacier .design-source-note { color: #246f7d; border-color: #5bafb5; background: #e1f1f5; }
 .design-workbench--glacier .range-control input { accent-color: #287c8a; }
+.design-workbench--yunlin { color: #4a2c3e; background: #f9e9f3; }
+.design-workbench--yunlin .design-stage { background-color: #f9e9f3; background-image: none; }
+.design-workbench--yunlin :is(.design-controls, .palette-matrix) { color: #4a2c3e; background: #fdf4f9; border-color: #e8c2d8; }
+.design-workbench--yunlin :is(.design-kicker, .design-description, .range-control output, .palette-matrix__header > p:last-child) { color: #8a6a7c; }
+.design-workbench--yunlin :is(.design-preview-switch, .design-theme-switch, .design-language-switch) button.is-active { color: #fff; background: #b55a8c; }
+.design-workbench--yunlin .design-source-note { color: #a8508a; border-color: #efb0d8; background: #fbe4f1; }
+.design-workbench--yunlin .range-control input { accent-color: #b55a8c; }
 .palette-theme--glacier { color: #16434d; border-color: #c3dfe5; background: #eef6f8; }
+.palette-theme--yunlin { color: #4a2c3e; border-color: #e8c2d8; background: #f9e9f3; }
 .palette-theme--yone { color: #542640; border-color: #e3b3ce; background: #fce7f1; }
 .palette-theme--yone :is(.palette-card dt, .palette-card__select small) { color: #855d76; }
 .palette-theme--yone .palette-card__select:hover,

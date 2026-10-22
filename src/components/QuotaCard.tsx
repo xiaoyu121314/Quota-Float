@@ -259,9 +259,9 @@ export const QuotaOrb = memo(function QuotaOrb({ snapshot, onDrag, onHover, lang
       aria-label={available ? (displayingWeeklyAsPrimary ? t.weeklyAvailableLabel(displayPercent!) : t.availableLabel(displayPercent!)) : localizedBackendMessage(snapshot.message, activeLanguage) ?? t.unavailableStatus}
     >
       <div className="aurora" aria-hidden="true" />
-      {/* 永恩与冰川极光复用同一额度环；弧长使用已限界的主额度，
+      {/* 永恩、冰川极光与云间灵尾复用同一额度环；弧长使用已限界的主额度，
           缺少短周期时自然跟随周额度，异常数据不绘制误导性的进度。 */}
-      {(theme === "yone" || theme === "glacier") && available ? (
+      {(theme === "yone" || theme === "glacier" || theme === "yunlin") && available ? (
         <svg className="quota-ring" viewBox="0 0 72 72" aria-hidden="true">
           <circle className="quota-ring__track" cx="36" cy="36" r="31" />
           <circle className="quota-ring__value" cx="36" cy="36" r="31" pathLength="100" strokeDasharray={`${displayPercent} 100`} transform="rotate(-90 36 36)" />

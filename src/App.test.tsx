@@ -63,6 +63,32 @@ it("does not resize an already expanded card for a right click", async () => {
   expect(document.querySelector(".ctx-menu")).not.toBeNull();
 });
 
+it.each([
+  { language: "zh-CN" as const, message: "右键菜单打开失败，请重试。" },
+  { language: "en" as const, message: "Context menu could not be opened. Try again." },
+])("reports a native menu failure in $language and clears it after retry", async ({ language, message }) => {
+  vi.mocked(getPreferences).mockResolvedValueOnce({ ...await getPreferences(), language });
+  vi.mocked(isTauri).mockReturnValue(true);
+  vi.mocked(setWidgetMenuOpen).mockRejectedValueOnce(new Error("context menu window missing"));
+  await act(async () => { render(<App />); });
+  await act(async () => { fireEvent.mouseEnter(document.querySelector("main")!); });
+  await act(async () => {
+    fireEvent.contextMenu(document.querySelector("main")!, { clientX: 40, clientY: 40 });
+  });
+  expect(screen.getByText(message)).toBeTruthy();
+  expect(document.querySelector(".quota-card")).not.toBeNull();
+  await act(async () => {
+    fireEvent.contextMenu(document.querySelector("main")!, { clientX: 40, clientY: 40 });
+  });
+  expect(screen.queryByText(message)).toBeNull();
+  expect(vi.mocked(setWidgetMenuOpen).mock.calls.filter(([open]) => open)).toHaveLength(2);
+  // A successful retry must also restore the guard that keeps the card open
+  // while its native menu owns focus outside the widget's WebView.
+  fireEvent.mouseLeave(document.querySelector("main")!);
+  act(() => vi.advanceTimersByTime(300));
+  expect(setWidgetExpanded).not.toHaveBeenCalledWith(false);
+});
+
 it("ignores an old popup-close notification after another native right click", async () => {
   vi.mocked(isTauri).mockReturnValue(true);
   await act(async () => { render(<App />); });
@@ -91,6 +117,7 @@ it.each([
   { theme: "naruto", label: "六道·鸣人", progressEnd: "#FFD45A" },
   { theme: "yone", label: "灵魂莲华·永恩", progressEnd: "#8466B4" },
   { theme: "glacier", label: "冰川极光", progressEnd: "#5BAFB5" },
+  { theme: "yunlin", label: "云间灵尾", progressEnd: "#EFB0D8" },
 ])("selects $theme from the menu and keeps its palette after collapsing", async ({ theme, label, progressEnd }) => {
   await act(async () => { render(<App />); });
   await act(async () => {
@@ -109,7 +136,7 @@ it.each([
   const orb = document.querySelector<HTMLElement>(`.quota-orb--theme-${theme}`)!;
   expect(orb).not.toBeNull();
   expect(orb.style.getPropertyValue("--progress-end")).toBe(progressEnd);
-  expect(Boolean(orb.querySelector(".quota-ring"))).toBe(theme === "yone" || theme === "glacier");
+  expect(Boolean(orb.querySelector(".quota-ring"))).toBe(theme === "yone" || theme === "glacier" || theme === "yunlin");
 });
 
 it.each([
@@ -119,6 +146,8 @@ it.each([
   { appearance: "yone" as const, stayExpanded: true },
   { appearance: "glacier" as const, stayExpanded: false },
   { appearance: "glacier" as const, stayExpanded: true },
+  { appearance: "yunlin" as const, stayExpanded: false },
+  { appearance: "yunlin" as const, stayExpanded: true },
 ])("loads a persisted $appearance theme with stayExpanded=$stayExpanded", async ({ appearance, stayExpanded }) => {
   vi.mocked(getPreferences).mockResolvedValueOnce({ ...await getPreferences(), appearance, stayExpanded });
   await act(async () => { render(<App />); });
@@ -126,7 +155,7 @@ it.each([
   expect(syncWidgetAppearance).toHaveBeenLastCalledWith(appearance);
 });
 
-it.each((["yone", "glacier"] as const).flatMap((appearance) => [-5, 0, 8, 35, 74, 100, 110].map((remainingPercent) => ({ appearance, remainingPercent }))))("renders the $appearance quota ring for $remainingPercent percent", async ({ appearance, remainingPercent }) => {
+it.each((["yone", "glacier", "yunlin"] as const).flatMap((appearance) => [-5, 0, 8, 35, 74, 100, 110].map((remainingPercent) => ({ appearance, remainingPercent }))))("renders the $appearance quota ring for $remainingPercent percent", async ({ appearance, remainingPercent }) => {
   const [snapshot] = await fetchSnapshots();
   vi.mocked(fetchSnapshots).mockResolvedValueOnce([{ ...snapshot, shortWindow: { ...snapshot.shortWindow!, remainingPercent } }]);
   vi.mocked(getPreferences).mockResolvedValueOnce({ ...await getPreferences(), appearance });
@@ -136,7 +165,7 @@ it.each((["yone", "glacier"] as const).flatMap((appearance) => [-5, 0, 8, 35, 74
   expect(document.querySelector(".orb-metric span")?.textContent).toBe(String(expected));
 });
 
-it.each(["yone", "glacier"] as const)("uses the weekly quota for the %s ring when the short window is missing", async (appearance) => {
+it.each(["yone", "glacier", "yunlin"] as const)("uses the weekly quota for the %s ring when the short window is missing", async (appearance) => {
   const [snapshot] = await fetchSnapshots();
   vi.mocked(fetchSnapshots).mockResolvedValueOnce([{ ...snapshot, shortWindow: null }]);
   vi.mocked(getPreferences).mockResolvedValueOnce({ ...await getPreferences(), appearance });
@@ -145,7 +174,7 @@ it.each(["yone", "glacier"] as const)("uses the weekly quota for the %s ring whe
   expect(document.querySelector(".orb-weekly-badge")?.textContent).toBe("W");
 });
 
-it.each((["yone", "glacier"] as const).flatMap((appearance) => (["unavailable", "stale", "signed_out", "loading"] as const).map((status) => ({ appearance, status }))))("hides the $appearance quota ring for $status data", async ({ appearance, status }) => {
+it.each((["yone", "glacier", "yunlin"] as const).flatMap((appearance) => (["unavailable", "stale", "signed_out", "loading"] as const).map((status) => ({ appearance, status }))))("hides the $appearance quota ring for $status data", async ({ appearance, status }) => {
   const [snapshot] = await fetchSnapshots();
   vi.mocked(fetchSnapshots).mockResolvedValueOnce([{ ...snapshot, status }]);
   vi.mocked(getPreferences).mockResolvedValueOnce({ ...await getPreferences(), appearance });

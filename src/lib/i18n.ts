@@ -89,6 +89,7 @@ export const copy = {
     ctxThemeNaruto: "六道·鸣人",
     ctxThemeYone: "灵魂莲华·永恩",
     ctxThemeGlacier: "冰川极光",
+    ctxThemeYunlin: "云间灵尾",
     ctxQuit: "退出",
   },
   en: {
@@ -177,6 +178,7 @@ export const copy = {
     ctxThemeNaruto: "Naruto · Six Paths",
     ctxThemeYone: "Spirit Blossom · Yone",
     ctxThemeGlacier: "Glacier Aurora",
+    ctxThemeYunlin: "Cloud Spirit Tails",
     ctxQuit: "Quit",
   },
 } as const;

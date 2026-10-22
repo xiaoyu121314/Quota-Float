@@ -83,6 +83,7 @@ function ThemeSubmenu({
     { key: "naruto", label: labels.ctxThemeNaruto },
     { key: "yone", label: labels.ctxThemeYone },
     { key: "glacier", label: labels.ctxThemeGlacier },
+    { key: "yunlin", label: labels.ctxThemeYunlin },
   ];
 
   useLayoutEffect(() => {
@@ -119,7 +120,7 @@ function ThemeSubmenu({
   return createPortal(
     <div
       ref={submenuRef}
-      className={`ctx-submenu${isLight ? " ctx-menu--light" : ""}${appearance === "yone" ? " ctx-menu--yone" : ""}${appearance === "glacier" ? " ctx-menu--glacier" : ""}`}
+      className={`ctx-submenu${isLight ? " ctx-menu--light" : ""}${appearance === "yone" ? " ctx-menu--yone" : ""}${appearance === "glacier" ? " ctx-menu--glacier" : ""}${appearance === "yunlin" ? " ctx-menu--yunlin" : ""}`}
       style={{ left: position?.left ?? 0, top: position?.top ?? 0, maxHeight: position?.maxHeight, visibility: position ? "visible" : "hidden" }}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -162,7 +163,7 @@ export const ContextMenu = memo(function ContextMenu({
   const [position, setPosition] = useState<Position>({ left: x, top: y });
   const closeTimer = useRef<number | null>(null);
   const labels = copy[normalizeLanguage(language)];
-  const isLight = appearance === "light" || appearance === "glacier" || (appearance === "system" && !window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+  const isLight = appearance === "light" || appearance === "glacier" || appearance === "yunlin" || (appearance === "system" && !window.matchMedia?.("(prefers-color-scheme: dark)").matches);
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimer.current !== null) {
@@ -257,7 +258,7 @@ export const ContextMenu = memo(function ContextMenu({
       {createPortal(
         <div
           ref={menuRef}
-          className={`ctx-menu${isLight ? " ctx-menu--light" : ""}${appearance === "yone" ? " ctx-menu--yone" : ""}${appearance === "glacier" ? " ctx-menu--glacier" : ""}`}
+          className={`ctx-menu${isLight ? " ctx-menu--light" : ""}${appearance === "yone" ? " ctx-menu--yone" : ""}${appearance === "glacier" ? " ctx-menu--glacier" : ""}${appearance === "yunlin" ? " ctx-menu--yunlin" : ""}`}
           style={position}
           onMouseLeave={scheduleClose}
           onMouseEnter={clearCloseTimer}

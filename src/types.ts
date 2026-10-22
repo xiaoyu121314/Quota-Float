@@ -50,7 +50,7 @@ export interface QuotaTrend {
  * dark-mode overrides so their palettes and persisted selections stay
  * independent from the built-in themes.
  */
-export type WidgetTheme = "light" | "dark" | "sakura" | "warm" | "city" | "home" | "naruto" | "yone" | "glacier";
+export type WidgetTheme = "light" | "dark" | "sakura" | "warm" | "city" | "home" | "naruto" | "yone" | "glacier" | "yunlin";
 export type AppearancePreference = "system" | WidgetTheme;
 export interface UsageWindow {
   remainingPercent: number;

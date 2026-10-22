@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ContextMenuWindow } from "./ContextMenuWindow";
 import type { ContextMenuState } from "./ContextMenu";
+import desktopConfig from "../../src-tauri/tauri.conf.json";
 
 const api = vi.hoisted(() => ({
   pending: null as ContextMenuState | null,
@@ -41,12 +42,30 @@ beforeEach(() => {
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
+it("preloads a hidden native window for the desktop menu route", () => {
+  // The frontend and Rust commands require this window to exist at startup.
+  // A component-only test cannot detect a missing native window declaration:
+  // the widget still renders, but every desktop right click fails before the
+  // menu page can receive its opening event.
+  expect(desktopConfig.app.windows.find(({ label }) => label === "context-menu"))
+    .toMatchObject({ url: "index.html?contextMenu", visible: false, transparent: true });
+});
+
 it("opens even when the hidden WebView suspends animation frames", async () => {
   await act(async () => { render(<ContextMenuWindow />); });
   expect(screen.getByText("主题")).toBeTruthy();
   expect(api.invoke).not.toHaveBeenCalledWith("show_context_menu", expect.anything());
   await act(async () => { vi.advanceTimersByTime(80); });
   expect(api.invoke).toHaveBeenCalledWith("show_context_menu", { requestId: 1 });
+});
+
+it("suppresses the browser menu when right-clicking outside the themed popup", async () => {
+  await act(async () => { render(<ContextMenuWindow />); });
+  const secondClick = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 });
+  document.body.dispatchEvent(secondClick);
+  expect(secondClick.defaultPrevented).toBe(true);
+  expect(document.querySelector(".ctx-menu")).not.toBeNull();
+  expect(api.close).not.toHaveBeenCalled();
 });
 
 it("does not show a dismissed popup after its delayed paint callback", async () => {

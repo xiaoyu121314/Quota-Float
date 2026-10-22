@@ -101,6 +101,16 @@ export const DESKTOP_PALETTES: Record<WidgetTheme, DesktopPalettes> = {
     stale: { "--cool": "#181615", "--glow": "#494035", "--warm": "#211C17", "--progress-start": "#A69880", "--progress-end": "#CCBDA3", "--aurora-opacity": ".12" },
     signed_out: { "--cool": "#1B160E", "--glow": "#615022", "--warm": "#28200F", "--progress-start": "#C5A34F", "--progress-end": "#E6CB85", "--aurora-opacity": ".14" },
   },
+  // 云间灵尾复用灵魂莲华阿狸的云上灵域参考图。浅粉云海之上以梅子粉
+  // 进度色保持额度可读，低额度状态加深避免与云层高光混在一起。
+  yunlin: {
+    healthy: { "--cool": "#F9E9F3", "--glow": "#F6D9ED", "--warm": "#F3CCE6", "--progress-start": "#C95FA2", "--progress-end": "#EFB0D8", "--aurora-opacity": ".14" },
+    caution: { "--cool": "#F7E4EC", "--glow": "#F3D5DE", "--warm": "#EFC4D2", "--progress-start": "#B4608C", "--progress-end": "#D993BC", "--aurora-opacity": ".16" },
+    critical: { "--cool": "#F6DDE4", "--glow": "#F2CBD6", "--warm": "#E9B4C2", "--progress-start": "#C4477E", "--progress-end": "#E284AE", "--aurora-opacity": ".18" },
+    unavailable: { "--cool": "#F5E6EE", "--glow": "#E7D2DF", "--warm": "#DFC2D2", "--progress-start": "#A87692", "--progress-end": "#CBA6BC", "--aurora-opacity": ".12" },
+    stale: { "--cool": "#F2E8ED", "--glow": "#DFD5DC", "--warm": "#D6C6CF", "--progress-start": "#9A8090", "--progress-end": "#BCA6B4", "--aurora-opacity": ".1" },
+    signed_out: { "--cool": "#F5E5F0", "--glow": "#E8D0E2", "--warm": "#DDBCD4", "--progress-start": "#9C6BA0", "--progress-end": "#C89BC8", "--aurora-opacity": ".12" },
+  },
   // Home Night uses the indoor reference as its visual anchor. The warmer
   // plum status records keep quota changes legible without flattening the
   // lamp, window, cat, and mug into a generic dark-mode surface.

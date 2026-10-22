@@ -51,6 +51,7 @@ export default function App() {
     settingsFailed: "设置保存失败，已恢复之前的状态。",
     alwaysOnTopFailed: "置顶状态切换失败。",
     expandFailed: "组件展开失败。",
+    menuOpenFailed: "右键菜单打开失败，请重试。",
     collapseFailed: "组件收起失败。",
     historyClearFailed: "趋势历史清空失败，请重试。",
   } : {
@@ -58,6 +59,7 @@ export default function App() {
     settingsFailed: "Settings could not be saved. Previous state restored.",
     alwaysOnTopFailed: "Always-on-top toggle failed.",
     expandFailed: "Widget expand failed.",
+    menuOpenFailed: "Context menu could not be opened. Try again.",
     collapseFailed: "Widget collapse failed.",
     historyClearFailed: "Could not clear trend history. Try again.",
   };
@@ -262,12 +264,16 @@ export default function App() {
       locked: preferences.locked, autostart: autostartEnabled,
     }).then(() => {
       if (sequence !== contextMenuSequence.current) return;
+      setOperationError(null);
       setContextMenu({ visible: true, x, y });
     }).catch(() => {
+      // Menu creation is independent of card expansion. Report the failed
+      // operation accurately and let a newer right click keep its own state.
+      if (sequence !== contextMenuSequence.current) return;
       contextMenuOpen.current = false;
-      setOperationError(operation.expandFailed);
+      setOperationError(operation.menuOpenFailed);
     });
-  }, [handleHover, operation.expandFailed, language, preferences.appearance, preferences.locked, autostartEnabled]);
+  }, [handleHover, operation.menuOpenFailed, language, preferences.appearance, preferences.locked, autostartEnabled]);
 
   const handleCloseContextMenu = useCallback((fromPopup = false) => {
     ++contextMenuSequence.current;

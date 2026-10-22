@@ -110,4 +110,23 @@ describe("desktop palettes", () => {
     });
     expect(DESKTOP_PALETTES.home.healthy).not.toEqual(DESKTOP_PALETTES.dark.healthy);
   });
+
+  it("keeps Cloud Spirit Tails independent and plum-pink-led on a light base", () => {
+    expect(Object.keys(DESKTOP_PALETTES.yunlin)).toEqual(["healthy", "caution", "critical", "unavailable", "stale", "signed_out"]);
+    expect(DESKTOP_PALETTES.yunlin.healthy).toMatchObject({
+      "--cool": "#F9E9F3",
+      "--progress-start": "#C95FA2",
+      "--progress-end": "#EFB0D8",
+    });
+    expect(DESKTOP_PALETTES.yunlin.caution["--progress-start"]).toBe("#B4608C");
+    expect(DESKTOP_PALETTES.yunlin.critical["--progress-start"]).toBe("#C4477E");
+    expect(DESKTOP_PALETTES.yunlin.healthy).not.toEqual(DESKTOP_PALETTES.yone.healthy);
+    expect(DESKTOP_PALETTES.yunlin.healthy).not.toEqual(DESKTOP_PALETTES.glacier.healthy);
+    for (const palette of Object.values(DESKTOP_PALETTES.yunlin)) {
+      expect(palette).not.toEqual(DESKTOP_PALETTES.sakura.healthy);
+      for (const key of ["--cool", "--glow", "--warm", "--progress-start", "--progress-end"] as const) {
+        expect(palette[key]).toMatch(/^#[0-9a-f]{6}$/i);
+      }
+    }
+  });
 });

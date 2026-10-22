@@ -27,14 +27,14 @@ const base: ProviderSnapshot = {
 };
 const preferences: WidgetPreferences = { locked: false, alwaysOnTop: true, stayExpanded: false, autoRotateSeconds: 12, language: "en", appearance: "system", opacity: 100, liquidGlassEnabled: false, customBackgroundImage: null };
 const defaults: Controls = { radius: 38, numberSize: 64, progressHeight: 6, brightness: 100, motion: 18 };
-const THEME_OPTIONS: WidgetTheme[] = ["light", "dark", "sakura", "warm", "city", "home", "naruto", "yone", "glacier"];
+const THEME_OPTIONS: WidgetTheme[] = ["light", "dark", "sakura", "warm", "city", "home", "naruto", "yone", "glacier", "yunlin"];
 const names: DesktopPaletteName[] = ["healthy", "caution", "critical", "unavailable", "stale", "signed_out"];
 const modes: Array<[Mode, string]> = [[74, "healthy"], [35, "caution"], [8, "critical"], ["weekly", "weekly"], ["healthy-orb", "healthyOrb"], ["caution-orb", "cautionOrb"], ["critical-orb", "criticalOrb"], ["weekly-orb", "weeklyOrb"], ["unavailable", "unavailable"], ["stale", "stale"], ["signed_out", "signedOut"], ["unavailable-orb", "unavailableOrb"], ["stale-orb", "staleOrb"], ["signed_out-orb", "signedOutOrb"]];
 const fields = ["--cool", "--glow", "--warm", "--progress-start", "--progress-end"] as const;
 const workbenchCopy = {
   "zh-CN": {
     widget: "组件",
-    previewState: "预览状态", previewTheme: "预览主题", language: "内容语言", light: "浅色", dark: "深色", sakura: "樱花夜", warm: "温暖·日常橙", city: "城市·暮色紫", home: "居家·夜晚", naruto: "六道·鸣人", yone: "灵魂莲华·永恩", glacier: "冰川极光",
+    previewState: "预览状态", previewTheme: "预览主题", language: "内容语言", light: "浅色", dark: "深色", sakura: "樱花夜", warm: "温暖·日常橙", city: "城市·暮色紫", home: "居家·夜晚", naruto: "六道·鸣人", yone: "灵魂莲华·永恩", glacier: "冰川极光", yunlin: "云间灵尾",
     geometryPreview: "几何预览", description: "配色为只读，始终来自桌面组件。以下几何调整仅用于此预览，并会在刷新后恢复默认。",
     source: "桌面来源：", cornerRadius: "圆角", mainNumber: "主数字", progressHeight: "进度条高度", brightness: "亮度", motion: "动效", reset: "重置几何设置",
     sourceValues: "桌面源数值", paletteMatrix: "配色矩阵", paletteDescription: "这些数值为只读。选择一个状态即可检查其生产环境外观；如需修改桌面配色，请编辑", preview: "预览",
@@ -42,7 +42,7 @@ const workbenchCopy = {
   },
   en: {
     widget: "Widget",
-    previewState: "Preview state", previewTheme: "Preview theme", language: "Content language", light: "Light", dark: "Dark", sakura: "Sakura Night", warm: "Warm Daily Orange", city: "City Dusk Purple", home: "Home Night", naruto: "Naruto · Six Paths", yone: "Spirit Blossom · Yone", glacier: "Glacier Aurora",
+    previewState: "Preview state", previewTheme: "Preview theme", language: "Content language", light: "Light", dark: "Dark", sakura: "Sakura Night", warm: "Warm Daily Orange", city: "City Dusk Purple", home: "Home Night", naruto: "Naruto · Six Paths", yone: "Spirit Blossom · Yone", glacier: "Glacier Aurora", yunlin: "Cloud Spirit Tails",
     geometryPreview: "Geometry preview", description: "The palette is read-only and always comes from the desktop widget. Geometry changes below exist only in this preview and reset on refresh.",
     source: "Desktop source:", cornerRadius: "Corner radius", mainNumber: "Main number", progressHeight: "Progress height", brightness: "Brightness", motion: "Motion", reset: "Reset geometry",
     sourceValues: "Desktop source values", paletteMatrix: "Palette matrix", paletteDescription: "These values are read-only. Select a state to inspect its production appearance; edit", preview: "Preview",

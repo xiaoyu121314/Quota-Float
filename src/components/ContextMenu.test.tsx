@@ -118,6 +118,7 @@ describe("context menu interaction", () => {
     ["城市·暮色紫", "city"], ["居家·夜晚", "home"], ["六道·鸣人", "naruto"],
     ["灵魂莲华·永恩", "yone"],
     ["冰川极光", "glacier"],
+    ["云间灵尾", "yunlin"],
   ])("keeps %s open on hover and selects it once", (label, theme) => {
     vi.useFakeTimers();
     const props = createProps();
@@ -153,6 +154,17 @@ describe("context menu interaction", () => {
     expect(document.querySelector(".ctx-submenu.ctx-menu--glacier")).not.toBeNull();
     fireEvent.click(screen.getByText("Glacier Aurora"));
     expect(props.onSelectTheme).toHaveBeenCalledExactlyOnceWith("glacier");
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the Yunlin palette for both menus and selects the English theme label", () => {
+    const props = createProps();
+    render(<ContextMenu {...props} appearance="yunlin" language="en" />);
+    fireEvent.mouseEnter(screen.getByText("Theme"));
+    expect(document.querySelector(".ctx-menu.ctx-menu--yunlin")).not.toBeNull();
+    expect(document.querySelector(".ctx-submenu.ctx-menu--yunlin")).not.toBeNull();
+    fireEvent.click(screen.getByText("Cloud Spirit Tails"));
+    expect(props.onSelectTheme).toHaveBeenCalledExactlyOnceWith("yunlin");
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
 

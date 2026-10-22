@@ -12,6 +12,16 @@ export function ContextMenuWindow() {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
 
   useEffect(() => {
+    // The transparent popup WebView is much larger than the themed menu. A
+    // second right click on its empty surface does not reach .ctx-menu, so
+    // WebView2 opens its own white browser menu unless the entire popup page
+    // cancels the event. Keep the app menu visible for repeated right clicks.
+    const preventBrowserMenu = (event: MouseEvent) => event.preventDefault();
+    document.addEventListener("contextmenu", preventBrowserMenu, true);
+    return () => document.removeEventListener("contextmenu", preventBrowserMenu, true);
+  }, []);
+
+  useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
     void (async () => {
