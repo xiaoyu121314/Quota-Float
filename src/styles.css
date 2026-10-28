@@ -869,68 +869,132 @@ button { font: inherit; }
 .design-workbench--home .palette-card.is-selected .palette-card__select { color: #f09abd; }
 
 .settings-panel {
+  /* Share semantic colours across controls and the nested crop dialog. Derive
+     secondary surfaces from the theme to keep all ten palettes consistent,
+     while preserving the existing geometry and image-crop contrast. */
+  color-scheme: light;
+  --settings-background: #f3f4f6;
+  --settings-text: #17191f;
+  --settings-accent: #4d65d2;
+  --settings-on-accent: #fff;
+  --settings-error: #b42337;
+  --settings-surface: color-mix(in srgb, var(--settings-background) 92%, var(--settings-text));
+  --settings-muted: color-mix(in srgb, var(--settings-text) 72%, var(--settings-background));
+  --settings-border: color-mix(in srgb, var(--settings-text) 18%, transparent);
+  --settings-control: color-mix(in srgb, var(--settings-text) 6%, transparent);
+  --settings-control-hover: color-mix(in srgb, var(--settings-text) 12%, transparent);
+  --settings-accent-hover: color-mix(in srgb, var(--settings-accent) 84%, var(--settings-text));
+  --settings-shadow: 0 14px 32px color-mix(in srgb, var(--settings-text) 10%, transparent);
   width: 100%;
   height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
+  /* Keep scrolling inside the settings window and reserve the scrollbar's
+     space so content does not shift when the window becomes tall enough. */
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--settings-accent) 45%, transparent) transparent;
   padding: 28px 30px 24px;
-  color: #f9edf3;
-  background: #241923;
+  color: var(--settings-text);
+  background: var(--settings-background);
   font-family: "Quota Sans", "Segoe UI", system-ui, sans-serif;
 }
+/* Align with widget palettes; native range controls follow the same scheme. */
+.settings-panel--dark,
+.settings-panel--sakura,
+.settings-panel--city,
+.settings-panel--home,
+.settings-panel--naruto { color-scheme: dark; --settings-error: #ff9eaa; --settings-on-accent: #17191f; }
+.settings-panel--dark { --settings-background: #141e2d; --settings-text: #edf3ff; --settings-accent: #a9d0ff; }
+.settings-panel--sakura { --settings-background: #241923; --settings-text: #f9edf3; --settings-accent: #f2a9c5; }
+.settings-panel--warm { --settings-background: #f8e4cd; --settings-text: #542717; --settings-accent: #a9421f; }
+.settings-panel--city { --settings-background: #151735; --settings-text: #f4edff; --settings-accent: #df9af0; }
+.settings-panel--home { --settings-background: #24182b; --settings-text: #fff0f7; --settings-accent: #f4a9c7; }
+.settings-panel--naruto { --settings-background: #171516; --settings-text: #fff0d8; --settings-accent: #ff982f; }
+.settings-panel--yone { --settings-background: #fce7f1; --settings-text: #542640; --settings-accent: #a3336e; }
+.settings-panel--glacier { --settings-background: #eef6f8; --settings-text: #16434d; --settings-accent: #287c8a; }
+.settings-panel--yunlin { --settings-background: #f9e9f3; --settings-text: #4a2c3e; --settings-accent: #a8508a; }
+/* Match the settings palette while keeping the native wheel/drag behaviour.
+   WebView2 needs the standard properties reset for WebKit thumb styling to
+   apply. The transparent border leaves a slim visible thumb inside a wider
+   drag area; inset track ends keep it clear of the window corners. */
+@supports selector(::-webkit-scrollbar) {
+  .settings-panel { scrollbar-width: auto; scrollbar-color: auto; }
+  .settings-panel::-webkit-scrollbar { width: 8px; }
+  .settings-panel::-webkit-scrollbar-track { margin-block: 12px; background: transparent; }
+  .settings-panel::-webkit-scrollbar-thumb {
+    min-height: 40px;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--settings-accent) 45%, transparent);
+    background-clip: padding-box;
+  }
+  .settings-panel::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--settings-accent) 70%, transparent); }
+  .settings-panel::-webkit-scrollbar-thumb:active { background-color: var(--settings-accent); }
+  .settings-panel::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  .settings-panel::-webkit-scrollbar-corner { background: transparent; }
+}
+/* Let Windows high-contrast mode draw its system scrollbar rather than
+   forcing the decorative palette over the user's accessibility colours. */
+@media (forced-colors: active) {
+  .settings-panel { scrollbar-color: auto; scrollbar-width: auto; }
+  .settings-panel::-webkit-scrollbar { width: auto; }
+}
 .settings-panel__header { margin-bottom: 24px; }
-.settings-panel__eyebrow { margin: 0 0 8px; color: #d99ab7; font-size: 10px; font-weight: 750; letter-spacing: .18em; }
+.settings-panel__eyebrow { margin: 0 0 8px; color: var(--settings-accent); font-size: 10px; font-weight: 750; letter-spacing: .18em; }
 .settings-panel h1 { margin: 0; font-size: 25px; font-weight: 650; letter-spacing: -.04em; }
-.settings-panel__header > p:last-child { margin: 8px 0 0; color: #c9aebe; font-size: 12px; line-height: 1.5; }
-.settings-section { padding: 18px; border: 1px solid rgba(246,190,215,.2); border-radius: 16px; background: #30202d; box-shadow: 0 14px 32px rgba(11,3,10,.24); transform: translateZ(0); }
+.settings-panel__header > p:last-child { margin: 8px 0 0; color: var(--settings-muted); font-size: 12px; line-height: 1.5; }
+.settings-section { padding: 18px; border: 1px solid var(--settings-border); border-radius: 16px; background: var(--settings-surface); box-shadow: var(--settings-shadow); transform: translateZ(0); }
 .settings-section + .settings-section { margin-top: 12px; }
 .settings-section__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .settings-section__heading > div { min-width: 0; }
 .settings-section h2 { margin: 0; font-size: 15px; font-weight: 700; }
-.settings-section p { margin: 6px 0 0; color: #c7aabc; font-size: 11px; }
-.settings-section output { color: #f2a9c5; font-size: 24px; font-variant-numeric: tabular-nums; font-weight: 650; }
+.settings-section p { margin: 6px 0 0; color: var(--settings-muted); font-size: 11px; }
+.settings-section output { color: var(--settings-accent); font-size: 24px; font-variant-numeric: tabular-nums; font-weight: 650; }
 .settings-range { display: block; margin-top: 24px; }
-.settings-range input { width: 100%; margin: 0; accent-color: #d77d9f; cursor: pointer; }
-.settings-range__labels { display: flex; justify-content: space-between; margin-top: 6px; color: #a9879b; font-size: 10px; }
+.settings-range input { width: 100%; margin: 0; accent-color: var(--settings-accent); cursor: pointer; }
+.settings-range__labels { display: flex; justify-content: space-between; margin-top: 6px; color: var(--settings-muted); font-size: 10px; }
 .settings-switch { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; margin-top: 1px; cursor: pointer; }
 .settings-switch__input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-.settings-switch__track { position: relative; width: 42px; height: 24px; flex: 0 0 auto; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(126,101,119,.48); box-shadow: inset 0 1px 2px rgba(12,3,10,.22); transition: background-color .18s ease, border-color .18s ease; }
-.settings-switch__track span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #f7d9e5; box-shadow: 0 2px 6px rgba(11,3,10,.3); transition: transform .18s ease, background-color .18s ease; }
-.settings-switch__input:checked + .settings-switch__track { border-color: #d77d9f; background: #b95880; }
-.settings-switch__input:checked + .settings-switch__track span { background: #fff5f9; transform: translateX(18px); }
-.settings-switch__input:focus-visible + .settings-switch__track { outline: 2px solid #f2a9c5; outline-offset: 3px; }
+.settings-switch__track { position: relative; width: 42px; height: 24px; flex: 0 0 auto; border: 1px solid var(--settings-border); border-radius: 999px; background: color-mix(in srgb, var(--settings-text) 22%, var(--settings-background)); box-shadow: inset 0 1px 2px rgba(12,3,10,.22); transition: background-color .18s ease, border-color .18s ease; }
+.settings-switch__track span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--settings-on-accent); box-shadow: 0 2px 6px rgba(11,3,10,.3); transition: transform .18s ease, background-color .18s ease; }
+.settings-switch__input:checked + .settings-switch__track { border-color: var(--settings-accent); background: var(--settings-accent); }
+.settings-switch__input:checked + .settings-switch__track span { background: var(--settings-on-accent); transform: translateX(18px); }
+.settings-switch__input:focus-visible + .settings-switch__track { outline: 2px solid var(--settings-accent); outline-offset: 3px; }
 .settings-switch__input:disabled + .settings-switch__track,
 .settings-switch__input:disabled ~ .settings-switch__state { cursor: wait; opacity: .58; }
-.settings-switch__state { min-width: 42px; color: #c9aebe; font-size: 10px; font-weight: 650; text-align: right; }
-.settings-background__state { flex: 0 0 auto; color: #f2a9c5; font-size: 11px; font-weight: 650; }
-.settings-background-preview { position: relative; height: 86px; display: grid; place-items: center; overflow: hidden; margin-top: 16px; border: 1px solid rgba(246,190,215,.2); border-radius: 12px; color: #a9879b; background: #241923; font-size: 11px; }
+.settings-switch__state { min-width: 42px; color: var(--settings-muted); font-size: 10px; font-weight: 650; text-align: right; }
+.settings-background__state { flex: 0 0 auto; color: var(--settings-accent); font-size: 11px; font-weight: 650; }
+.settings-background-preview { position: relative; height: 86px; display: grid; place-items: center; overflow: hidden; margin-top: 16px; border: 1px solid var(--settings-border); border-radius: 12px; color: var(--settings-muted); background: var(--settings-background); font-size: 11px; }
 .settings-background-preview--has-image { background-position: center; background-repeat: no-repeat; background-size: cover; }
 .settings-background-preview--has-image::after { content: ""; position: absolute; inset: 0; background: linear-gradient(145deg, rgba(36,25,35,.08), rgba(36,25,35,.28)); pointer-events: none; }
 .settings-background-preview span { position: relative; z-index: 1; }
 .settings-background__actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
 .settings-file-button,
-.settings-background__clear { min-height: 28px; display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; border: 1px solid rgba(246,190,215,.24); border-radius: 999px; color: #f9edf3; background: #8f4265; font-size: 11px; font-weight: 650; cursor: pointer; }
-.settings-file-button:hover { background: #a34f75; }
+.settings-background__clear { min-height: 28px; display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; border: 1px solid var(--settings-border); border-radius: 999px; color: var(--settings-on-accent); background: var(--settings-accent); font-size: 11px; font-weight: 650; cursor: pointer; }
+.settings-file-button:hover { background: var(--settings-accent-hover); }
 .settings-file-button:focus-within,
-.settings-background__clear:focus-visible { outline: 2px solid #f2a9c5; outline-offset: 3px; }
+.settings-background__clear:focus-visible { outline: 2px solid var(--settings-accent); outline-offset: 3px; }
 .settings-file-button input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-.settings-background__clear { border-color: rgba(246,190,215,.18); color: #d7b8c8; background: rgba(255,255,255,.06); }
-.settings-background__clear:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+.settings-background__clear { border-color: var(--settings-border); color: var(--settings-muted); background: var(--settings-control); }
+.settings-background__clear:hover:not(:disabled) { background: var(--settings-control-hover); }
 .settings-file-button--disabled,
 .settings-background__clear:disabled { cursor: wait; opacity: .58; }
-.settings-background__hint { margin-top: 9px !important; color: #a9879b !important; line-height: 1.45; }
+.settings-background__hint { margin-top: 9px !important; color: var(--settings-muted) !important; line-height: 1.45; }
 .settings-background-editor { position: fixed; inset: 0; z-index: 10; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 16px; background: rgba(17,10,18,.8); backdrop-filter: blur(8px); }
-.settings-background-editor__dialog { width: min(100%, 360px); margin: auto 0; padding: 18px; border: 1px solid rgba(246,190,215,.28); border-radius: 20px; color: #f9edf3; background: #241923; box-shadow: 0 20px 54px rgba(8,2,8,.48); }
+.settings-background-editor__dialog { width: min(100%, 360px); margin: auto 0; padding: 18px; border: 1px solid var(--settings-border); border-radius: 20px; color: var(--settings-text); background: var(--settings-background); box-shadow: 0 20px 54px rgba(8,2,8,.48); }
 .settings-background-editor__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
-.settings-background-editor__header h2 { margin: 0; color: #f9edf3; font-size: 19px; font-weight: 700; letter-spacing: -.03em; }
-.settings-background-editor__header p:last-child { max-width: 30ch; margin: 7px 0 0; color: #c9aebe; font-size: 10px; line-height: 1.5; }
-.settings-background-editor__close { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid rgba(246,190,215,.22); border-radius: 50%; color: #d7b8c8; background: rgba(255,255,255,.06); cursor: pointer; }
-.settings-background-editor__close:hover:not(:disabled) { color: #fff5fa; background: rgba(255,255,255,.12); }
+.settings-background-editor__header h2 { margin: 0; color: var(--settings-text); font-size: 19px; font-weight: 700; letter-spacing: -.03em; }
+.settings-background-editor__header p:last-child { max-width: 30ch; margin: 7px 0 0; color: var(--settings-muted); font-size: 10px; line-height: 1.5; }
+.settings-background-editor__close { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--settings-border); border-radius: 50%; color: var(--settings-muted); background: var(--settings-control); cursor: pointer; }
+.settings-background-editor__close:hover:not(:disabled) { color: var(--settings-text); background: var(--settings-control-hover); }
 .settings-background-editor__close:focus-visible,
 .settings-background-editor__cancel:focus-visible,
 .settings-background-editor__apply:focus-visible,
-.settings-background-editor__reset:focus-visible { outline: 2px solid #f2a9c5; outline-offset: 3px; }
+.settings-background-editor__reset:focus-visible { outline: 2px solid var(--settings-accent); outline-offset: 3px; }
 .settings-background-editor__close svg { width: 15px; height: 15px; }
-.settings-background-editor__stage { position: relative; width: min(100%, 300px); height: 300px; overflow: hidden; margin: 16px auto 0; border: 1px solid rgba(246,190,215,.24); border-radius: 14px; background: #100c12; cursor: grab; touch-action: none; user-select: none; }
+.settings-background-editor__stage { position: relative; width: min(100%, 300px); height: 300px; overflow: hidden; margin: 16px auto 0; border: 1px solid var(--settings-border); border-radius: 14px; background: #100c12; cursor: grab; touch-action: none; user-select: none; }
 .settings-background-editor__stage:active { cursor: grabbing; }
 .settings-background-editor__stage img { position: absolute; max-width: none; pointer-events: none; user-select: none; }
 .settings-background-editor__crop { position: absolute; top: 50%; left: 50%; z-index: 2; transform: translate(-50%, -50%); border: 2px solid rgba(255,255,255,.94); border-radius: 5px; box-shadow: 0 0 0 999px rgba(10,5,12,.5), 0 0 0 1px rgba(20,10,18,.4); pointer-events: none; }
@@ -951,31 +1015,31 @@ button { font: inherit; }
 .settings-background-editor__crop-handle--top-right { top: -2px; right: -2px; border-left: 0; border-bottom: 0; cursor: nesw-resize; }
 .settings-background-editor__crop-handle--bottom-right { right: -2px; bottom: -2px; border-top: 0; border-left: 0; cursor: nwse-resize; }
 .settings-background-editor__crop-handle--bottom-left { bottom: -2px; left: -2px; border-top: 0; border-right: 0; cursor: nesw-resize; }
-.settings-background-editor__loading { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; color: #f9edf3; background: rgba(16,12,18,.62); font-size: 11px; }
+.settings-background-editor__loading { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; color: var(--settings-text); background: rgba(16,12,18,.62); font-size: 11px; }
 .settings-background-editor__controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
-.settings-background-editor__gesture-readout { display: grid; gap: 5px; padding: 8px 9px; border: 1px solid rgba(246,190,215,.16); border-radius: 10px; background: rgba(255,255,255,.05); }
-.settings-background-editor__gesture-readout > span { display: flex; align-items: center; justify-content: space-between; gap: 7px; color: #c9aebe; font-size: 10px; }
-.settings-background-editor__gesture-readout > span b { color: #f9edf3; font-weight: 650; }
-.settings-background-editor__gesture-readout output { color: #f2a9c5; font-variant-numeric: tabular-nums; }
-.settings-background-editor__gesture-readout small { color: #a9879b; font-size: 9px; line-height: 1.35; }
-.settings-background-editor__error { margin: 12px 0 0; color: #ff9eaa; font-size: 10px; line-height: 1.4; }
+.settings-background-editor__gesture-readout { display: grid; gap: 5px; padding: 8px 9px; border: 1px solid var(--settings-border); border-radius: 10px; background: var(--settings-control); }
+.settings-background-editor__gesture-readout > span { display: flex; align-items: center; justify-content: space-between; gap: 7px; color: var(--settings-muted); font-size: 10px; }
+.settings-background-editor__gesture-readout > span b { color: var(--settings-text); font-weight: 650; }
+.settings-background-editor__gesture-readout output { color: var(--settings-accent); font-variant-numeric: tabular-nums; }
+.settings-background-editor__gesture-readout small { color: var(--settings-muted); font-size: 9px; line-height: 1.35; }
+.settings-background-editor__error { margin: 12px 0 0; color: var(--settings-error); font-size: 10px; line-height: 1.4; }
 .settings-background-editor__actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
 .settings-background-editor__actions > div { display: flex; gap: 7px; }
 .settings-background-editor__reset,
 .settings-background-editor__cancel,
-.settings-background-editor__apply { min-height: 29px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 11px; border: 1px solid rgba(246,190,215,.2); border-radius: 999px; color: #d7b8c8; background: rgba(255,255,255,.06); font-size: 10px; font-weight: 650; cursor: pointer; }
+.settings-background-editor__apply { min-height: 29px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 11px; border: 1px solid var(--settings-border); border-radius: 999px; color: var(--settings-muted); background: var(--settings-control); font-size: 10px; font-weight: 650; cursor: pointer; }
 .settings-background-editor__reset:hover:not(:disabled),
-.settings-background-editor__cancel:hover:not(:disabled) { background: rgba(255,255,255,.12); }
-.settings-background-editor__apply { border-color: rgba(246,190,215,.32); color: #fff5fa; background: #8f4265; }
-.settings-background-editor__apply:hover:not(:disabled) { background: #a34f75; }
+.settings-background-editor__cancel:hover:not(:disabled) { background: var(--settings-control-hover); }
+.settings-background-editor__apply { border-color: var(--settings-border); color: var(--settings-on-accent); background: var(--settings-accent); }
+.settings-background-editor__apply:hover:not(:disabled) { background: var(--settings-accent-hover); }
 .settings-background-editor__reset:disabled,
 .settings-background-editor__cancel:disabled,
 .settings-background-editor__apply:disabled,
 .settings-background-editor__close:disabled { cursor: wait; opacity: .55; }
 .settings-background-editor__reset svg,
 .settings-background-editor__apply svg { width: 13px; height: 13px; }
-.settings-status { min-height: 18px; margin: 14px 0 0; color: #b99bac; font-size: 11px; text-align: right; }
-.settings-status--error { color: #ff9eaa; }
+.settings-status { min-height: 18px; margin: 14px 0 0; color: var(--settings-muted); font-size: 11px; text-align: right; }
+.settings-status--error { color: var(--settings-error); }
 
 /* Liquid Glass keeps the selected theme underneath a translucent surface.
    Blur and saturation let the desktop show through while the inset highlights

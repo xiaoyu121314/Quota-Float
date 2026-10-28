@@ -12,10 +12,16 @@ import {
   readImageAsDataUrl,
 } from "../lib/backgroundImage";
 import { BackgroundCropEditor } from "./BackgroundCropEditor";
+import type { AppearancePreference, WidgetTheme } from "../types";
 
 const DEFAULT_OPACITY = 100;
 
 export function SettingsPanel() {
+  const [appearance, setAppearance] = useState<AppearancePreference>("light");
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
+  // Resolve system appearance at render time so OS changes and desktop theme
+  // broadcasts share the same palette without persisting a second preference.
+  const theme: WidgetTheme = appearance === "system" ? (systemDark ? "dark" : "light") : appearance;
   const [opacity, setOpacity] = useState(DEFAULT_OPACITY);
   const [clickThrough, setClickThroughState] = useState(false);
   const [liquidGlassEnabled, setLiquidGlassEnabled] = useState(false);
@@ -33,6 +39,7 @@ export function SettingsPanel() {
     let cleanup: () => void = () => {};
     void getPreferences().then((preferences) => {
       if (!cancelled) {
+        setAppearance(preferences.appearance);
         setOpacity(preferences.opacity);
         setClickThroughState(preferences.locked);
         setLiquidGlassEnabled(preferences.liquidGlassEnabled);
@@ -47,6 +54,7 @@ export function SettingsPanel() {
     });
     void listenDesktopEvents({
       onPreferences: (preferences) => {
+        setAppearance(preferences.appearance);
         setOpacity(preferences.opacity);
         setClickThroughState(preferences.locked);
         setLiquidGlassEnabled(preferences.liquidGlassEnabled);
@@ -60,6 +68,17 @@ export function SettingsPanel() {
       cancelled = true;
       cleanup();
     };
+  }, []);
+
+  useEffect(() => {
+    // The settings WebView is independent of the widget. Subscribe here too
+    // so an already-open panel follows Windows light/dark changes immediately.
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+    const onChange = () => setSystemDark(media.matches);
+    onChange();
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
   }, []);
 
   useEffect(() => {
@@ -166,7 +185,7 @@ export function SettingsPanel() {
   };
 
   return (
-    <main className="settings-panel">
+    <main className={`settings-panel settings-panel--${theme}`}>
       <header className="settings-panel__header">
         <p className="settings-panel__eyebrow">QUOTA FLOAT · SETTINGS</p>
         <h1>偏好设置</h1>

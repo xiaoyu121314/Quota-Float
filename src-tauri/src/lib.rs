@@ -1069,11 +1069,19 @@ fn get_preferences(state: State<'_, AppState>) -> WidgetPreferences {
 #[tauri::command]
 fn set_preferences(
     preferences: WidgetPreferences,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let preferences = preferences.normalized();
     persist_preferences(&state.preferences_path, &preferences)?;
-    *preferences_lock(&state) = preferences;
+    *preferences_lock(&state) = preferences.clone();
+    // The widget updates optimistically when its context menu selects a theme,
+    // but the independent settings WebView only receives native events. Emit
+    // the normalized, successfully persisted value to both windows so an open
+    // or preloaded settings panel cannot retain the previously selected theme.
+    // Notify after releasing the preferences lock, matching dedicated setters.
+    let _ = app.emit_to("widget", "preferences-changed", preferences.clone());
+    let _ = app.emit_to("settings", "preferences-changed", preferences);
     Ok(())
 }
 
@@ -2071,6 +2079,9 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
                             let _ = theme_glacier_state.set_checked(normalized.appearance == "glacier");
                             let _ = theme_yunlin_state.set_checked(normalized.appearance == "yunlin");
                             let _ = app.emit_to("widget", "preferences-changed", normalized.clone());
+                            // Keep an already-open settings WebView in sync with
+                            // tray theme changes, just like set_preferences does.
+                            let _ = app.emit_to("settings", "preferences-changed", normalized.clone());
                         }
                     }
                 }
